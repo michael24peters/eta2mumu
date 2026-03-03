@@ -37,8 +37,16 @@ def parseArgs() -> bool:
         type=Path,
         help="Additional options files to load before starting Gaudi Python",
     )
+    parser.add_argument(
+        "--decay",
+        type=str,
+        choices=DECAYS,
+        default=None,
+        help=f"Decay type to use. One of: {DECAYS}"
+    )
     args = parser.parse_args()
 
+    # Options file loading logic
     opt = None
     for options_path in args.options_paths:
         print("Adding options file:", options_path)
@@ -56,17 +64,26 @@ def parseArgs() -> bool:
               "Defaulting to 'False'.")
     else: print(f"Running with BDTTagger.Backwards == '{opt}'.")
 
-    if opt == 'True': return True
-    elif opt == 'False': return False
+    if opt == 'True': backwards = True
+    elif opt == 'False': backwards = False
     else: raise ValueError("Invalid input, must be 'True' or 'False'")
+
+    returns backwards, args.decay
 
 
 # =============================================================================
 
+# Possible decay options
+DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
+
 # Set flags
 IS_MC = True  # True = MC, False = real data
-IS_SAMPLE = True # True = sample data, False = analysis production
-IS_MUMUGAMMA = False  # True = η→μμγ, False = η→μμ
+IS_SAMPLE = True  # True = sample data, False = analysis production
+DECAY = 'eta2mumumumu'  # Decay type, change for local tests
+
+if not IS_SAMPLE:
+    backwards, decay_arg = parseArgs()
+    if decay_arg is not None: DECAY = decay_arg
 
 # MC or real data.
 if IS_MC and IS_SAMPLE:
@@ -80,19 +97,19 @@ if IS_MC and IS_SAMPLE:
     DaVinci().CondDBtag = 'sim-20190128-vc-md100'  # for 00090844
     IOHelper('ROOT').inputFiles([
         'data/minbias/00090844_00000001_7.AllStreams.dst',  # minbias
-        'data/minbias/00090844_00000048_7.AllStreams.dst',
-        'data/minbias/00090844_00000055_7.AllStreams.dst',
-        'data/minbias/00090844_00000075_7.AllStreams.dst',
-        'data/minbias/00090844_00000079_7.AllStreams.dst',
-        'data/minbias/00090844_00000108_7.AllStreams.dst',
-        'data/minbias/00090844_00000186_7.AllStreams.dst',
-        'data/minbias/00090844_00000193_7.AllStreams.dst',
-        'data/minbias/00090844_00000207_7.AllStreams.dst',
-        'data/minbias/00090844_00000227_7.AllStreams.dst',
-        'data/minbias/00090844_00000054_7.AllStreams.dst',
-        'data/minbias/00090844_00000176_7.AllStreams.dst',
-        # 'data/norm/00169948_00000003_7.AllStreams.dst',  # eta->mumugamma
-        # 'data/norm/00169948_00000138_7.AllStreams.dst'  # 39112231, sim10b, magdown
+#        'data/minbias/00090844_00000048_7.AllStreams.dst',
+#        'data/minbias/00090844_00000055_7.AllStreams.dst',
+#        'data/minbias/00090844_00000075_7.AllStreams.dst',
+#        'data/minbias/00090844_00000079_7.AllStreams.dst',
+#        'data/minbias/00090844_00000108_7.AllStreams.dst',
+#        'data/minbias/00090844_00000186_7.AllStreams.dst',
+#        'data/minbias/00090844_00000193_7.AllStreams.dst',
+#        'data/minbias/00090844_00000207_7.AllStreams.dst',
+#        'data/minbias/00090844_00000227_7.AllStreams.dst',
+#        'data/minbias/00090844_00000054_7.AllStreams.dst',
+#        'data/minbias/00090844_00000176_7.AllStreams.dst',
+#        'data/norm/00169948_00000003_7.AllStreams.dst',  # eta->mumugamma
+#        'data/norm/00169948_00000138_7.AllStreams.dst'  # 39112231, sim10b, magdown
     ],
         clear=True)
     
@@ -101,10 +118,9 @@ if IS_MC and IS_SAMPLE:
 
     # Get current date and time, append .root file extension
     extension = "_" + str(datetime.now().strftime("%Y%m%d")) + ".root"
-elif IS_MC and not IS_SAMPLE:
+elif not IS_SAMPLE:
     DaVinci().Lumi = False  # Processing of luminosity data.
     # Output file
-    backwards = parseArgs()
     outfile = f"{ProdConf().OutputFilePrefix}.{ProdConf().OutputFileTypes[0]}"
 
 # Reconstruction.
@@ -119,15 +135,23 @@ daughter_cuts = {
     "mu-": "(PT > 500*MeV) & (P > 3*GeV)"
 }
 required_selections = [muons]
-if IS_MUMUGAMMA:
+if DECAY == 'eta2mumugamma':
     # Append gamma cuts and selection
     daughter_cuts["gamma"] = "(PT > 500*MeV) & (CL > 0.2)"
     required_selections.append(photons)
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuGamma' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- gamma"
-else:
+elif DECAY == 'eta2mumu':
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMu' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu-"
+elif DECAY == 'eta2mumumumu':
+    if IS_SAMPLE: outfile = 'ntuples/eta2MuMuMuMu' + ('_mc' if IS_MC else '') + extension
+    decay_descriptor = "eta -> mu+ mu- mu+ mu-"
+elif DECAY == 'eta2mumuee':
+    daughter_cuts["e+"] = "(PT > 500*MeV) & (CL > 0.2)"
+    daughter_cuts["e-"] = "(PT > 500*MeV) & (CL > 0.2)"
+    if IS_SAMPLE: outfile = 'ntuples/eta2MuMuEE' + ('_mc' if IS_MC else '') + extension
+    decay_descriptor = "eta -> mu+ mu- e+ e-"
 
 print(f"Writing output to {outfile}")  # debug
 
@@ -210,10 +234,10 @@ docaTool = GaudiPython.gbl.LoKi.Particles.DOCA(0, 0, dstTool)
 
 # Initialize the tuple.
 # local sample
-try: from scripts.Ntuple import Ntuple
+try: from scripts.ntuple import Ntuple
 # analysis production
-except: from Ntuple import Ntuple
-ntuple = Ntuple(outfile, IS_MC, IS_MUMUGAMMA, tes, genTool, rftTool, pvrTool,
+except: from ntuple import Ntuple
+ntuple = Ntuple(outfile, IS_MC, DECAY, tes, genTool, rftTool, pvrTool,
                 None, dstTool, None, trkTool, l0Tool, hlt1Tool, hlt2Tool)
 
 # Run.

@@ -27,12 +27,12 @@ class Ntuple:
     Class to store an ntuple.
     """
 
-    def __init__(self, name, IS_MC, IS_MUMUGAMMA, tes, genTool, rftTool, pvrTool, velTool,
+    def __init__(self, name, IS_MC, DECAY, tes, genTool, rftTool, pvrTool, velTool,
                  dstTool, detTool, trkTool, l0Tool, hlt1Tool, hlt2Tool):
         from collections import OrderedDict
         import ROOT
         import array
-        self.is_mumugamma = IS_MUMUGAMMA
+        self.decay = DECAY
         self.tes = tes
         self.genTool = genTool
         self.rftTool = rftTool
@@ -566,18 +566,30 @@ class Ntuple:
             for vrt in prt.endVertices():
                 for dtr in vrt.products():
                     # eta -> mu+ mu- gamma
-                    if self.is_mumugamma and dtr.particleID().pid() in [-13, 13, 22]:
+                    if self.decay == 'eta2mumugamma' and dtr.particleID().pid() in [-13, 13, 22]:
                         dtrs.append(dtr)
                     # eta -> mu+ mu-
-                    elif not self.is_mumugamma and dtr.particleID().pid() in [-13, 13]:
+                    elif self.decay == 'eta2mumu' and dtr.particleID().pid() in [-13, 13]:
+                        dtrs.append(dtr)
+                    # eta -> mu+ mu- mu+ mu-
+                    elif self.decay == 'eta2mumumumu' and dtr.particleID().pid() in [-13, 13]:
+                        dtrs.append(dtr)
+                    # eta -> mu+ mu- e+ e-
+                    elif self.decay == 'eta2mumuee' and dtr.particleID().pid() in [-13, 13, -11, 11]:
                         dtrs.append(dtr)
             dtrs = sorted(dtrs, key=lambda d: d[0].particleID().pid())
             pids = [d[0].particleID().pid() for d in dtrs]
             # eta -> mu+ mu- gamma
-            if self.is_mumugamma and pids != [-13, 13, 22]:
+            if self.decay == 'eta2mumugamma' and pids != [-13, 13, 22]:
                 return (None, None)
             # eta -> mu+ mu-
-            if not self.is_mumugamma and pids != [-13, 13]:
+            elif self.decay == 'eta2mumu' and pids != [-13, 13]:
+                return (None, None)
+            # eta -> mu+ mu- mu+ mu-
+            elif self.decay == 'eta2mumumumu' and pids != [-13, -13, 13, 13]:
+                return (None, None)
+            # eta -> mu+ mu- e+ e-
+            elif self.decay == 'eta2mumuee' and pids != [-13, -11, 11, 13]:
                 return (None, None)
             decay = [prt] + dtrs
 
@@ -675,17 +687,27 @@ class Ntuple:
             for vrt in prt.endVertices():
                 for dtr in vrt.products():
                     # eta -> mu+ mu- gamma
-                    if self.is_mumugamma and dtr.particleID().pid() in [-13, 13, 22]:
+                    if self.decay == 'eta2mumugamma' and dtr.particleID().pid() in [-13, 13, 22]:
                         dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
                     # eta -> mu+ mu-
-                    elif not self.is_mumugamma and dtr.particleID().pid() in [-13, 13]:
+                    elif self.decay == 'eta2mumu' and dtr.particleID().pid() in [-13, 13]:
                         dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
+                    # eta -> mu+ mu- mu+ mu-
+                    elif self.decay == 'eta2mumumumu' and dtr.particleID().pid() in [-13, 13]:
+                        dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
+                    # eta -> mu+ mu- e+ e-
+                    elif self.decay == 'eta2mumuee' and dtr.particleID().pid() in [-13, -11, 11, 13]:
+                        dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
+ 
             # Sort daughters by PID, i.e. always in {-13, 13(, 22)} order.
             dtrs = sorted(dtrs, key=lambda d: d['pid'])
 
             # Skip all etas which do not decay exactly to mu+ mu- (gamma)
             pids = [d['pid'] for d in dtrs]
-            accept = accept and pids == [-13, 13, 22] if self.is_mumugamma else pids == [-13, 13]
+            if self.decay == 'eta2mumugamma': accept = accept and pids == [-13, 13, 22]
+            elif self.decay == 'eta2mumu': accept = accept and pids == [-13, 13]
+            elif self.decay == 'eta2mumumumu': accept = accept and pids == [-13, -13, 13, 13]
+            elif self.decay == 'eta2mumuee': accept = accept and pids == [-13, -11, 11, 13]
 
             # Kinematics checks.
             for dtr in dtrs:
