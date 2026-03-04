@@ -37,13 +37,6 @@ def parseArgs() -> bool:
         type=Path,
         help="Additional options files to load before starting Gaudi Python",
     )
-    parser.add_argument(
-        "--decay",
-        type=str,
-        choices=DECAYS,
-        default=None,
-        help=f"Decay type to use. One of: {DECAYS}"
-    )
     args = parser.parse_args()
 
     # Options file loading logic
@@ -68,7 +61,7 @@ def parseArgs() -> bool:
     elif opt == 'False': backwards = False
     else: raise ValueError("Invalid input, must be 'True' or 'False'")
 
-    returns backwards, args.decay
+    return backwards, args.decay
 
 
 # =============================================================================
@@ -77,13 +70,9 @@ def parseArgs() -> bool:
 DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 
 # Set flags
-IS_MC = True  # True = MC, False = real data
+IS_MC = False  # True = MC, False = real data
 IS_SAMPLE = True  # True = sample data, False = analysis production
-DECAY = 'eta2mumumumu'  # Decay type, change for local tests
-
-if not IS_SAMPLE:
-    backwards, decay_arg = parseArgs()
-    if decay_arg is not None: DECAY = decay_arg
+DECAY = 'eta2mumu'  # Decay type, change for local tests
 
 # MC or real data.
 if IS_MC and IS_SAMPLE:
@@ -91,25 +80,25 @@ if IS_MC and IS_SAMPLE:
     DaVinci().Lumi = False  # Processing of luminosity data.
     DaVinci().Simulation = True  # MC simulation data.
     # Found using "lb-dirac dirac-bookkeeping-production-information 00169948".
-    # DaVinci().DDDBtag = 'dddb-20210528-8' # for 00169948
-    # DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10' # for 00169948
-    DaVinci().DDDBtag = 'dddb-20170721-3'  # for 00090844
-    DaVinci().CondDBtag = 'sim-20190128-vc-md100'  # for 00090844
+    DaVinci().DDDBtag = 'dddb-20210528-8' # for 00169948
+    DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10' # for 00169948
+    # DaVinci().DDDBtag = 'dddb-20170721-3'  # for 00090844
+    # DaVinci().CondDBtag = 'sim-20190128-vc-md100'  # for 00090844
     IOHelper('ROOT').inputFiles([
-        'data/minbias/00090844_00000001_7.AllStreams.dst',  # minbias
-#        'data/minbias/00090844_00000048_7.AllStreams.dst',
-#        'data/minbias/00090844_00000055_7.AllStreams.dst',
-#        'data/minbias/00090844_00000075_7.AllStreams.dst',
-#        'data/minbias/00090844_00000079_7.AllStreams.dst',
-#        'data/minbias/00090844_00000108_7.AllStreams.dst',
-#        'data/minbias/00090844_00000186_7.AllStreams.dst',
-#        'data/minbias/00090844_00000193_7.AllStreams.dst',
-#        'data/minbias/00090844_00000207_7.AllStreams.dst',
-#        'data/minbias/00090844_00000227_7.AllStreams.dst',
-#        'data/minbias/00090844_00000054_7.AllStreams.dst',
-#        'data/minbias/00090844_00000176_7.AllStreams.dst',
-#        'data/norm/00169948_00000003_7.AllStreams.dst',  # eta->mumugamma
-#        'data/norm/00169948_00000138_7.AllStreams.dst'  # 39112231, sim10b, magdown
+        # 'data/minbias/00090844_00000001_7.AllStreams.dst',  # minbias
+        # 'data/minbias/00090844_00000048_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000055_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000075_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000079_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000108_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000186_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000193_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000207_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000227_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000054_7.AllStreams.dst',
+        # 'data/minbias/00090844_00000176_7.AllStreams.dst',
+    #    'data/norm/00169948_00000003_7.AllStreams.dst',  # eta->mumugamma
+    #    'data/norm/00169948_00000138_7.AllStreams.dst'  # 39112231, sim10b, magdown
     ],
         clear=True)
     
@@ -120,6 +109,7 @@ if IS_MC and IS_SAMPLE:
     extension = "_" + str(datetime.now().strftime("%Y%m%d")) + ".root"
 elif not IS_SAMPLE:
     DaVinci().Lumi = False  # Processing of luminosity data.
+    backwards = parseArgs()
     # Output file
     outfile = f"{ProdConf().OutputFilePrefix}.{ProdConf().OutputFileTypes[0]}"
 

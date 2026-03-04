@@ -577,8 +577,10 @@ class Ntuple:
                     # eta -> mu+ mu- e+ e-
                     elif self.decay == 'eta2mumuee' and dtr.particleID().pid() in [-13, 13, -11, 11]:
                         dtrs.append(dtr)
+            # Sort daughter pids to create consistent output
             dtrs = sorted(dtrs, key=lambda d: d[0].particleID().pid())
             pids = [d[0].particleID().pid() for d in dtrs]
+            # Check for target decay
             # eta -> mu+ mu- gamma
             if self.decay == 'eta2mumugamma' and pids != [-13, 13, 22]:
                 return (None, None)
@@ -595,6 +597,7 @@ class Ntuple:
 
             # Fill.
             idx_eta = -1
+            # Loop through particles in decay
             for p in decay:
                 pid = p.particleID().pid()
                 mom = p.momentum()
@@ -603,9 +606,11 @@ class Ntuple:
                 idx = self.ntuple['%s_px' % pre].size()
                 self.saved[key] = idx
 
+                # Save eta as mother index
                 if pid == 221:
                     idx_eta = idx
                     self.fill('%s_idx_mom' % pre, -1)
+                # Point daughters to mother index
                 else:
                     self.fill('%s_idx_mom' % pre, idx_eta)
                 # Momentum
@@ -670,8 +675,7 @@ class Ntuple:
         key = self.key(prt)
         idx = -1
 
-        # For MC data, we only want to save eta -> mu+ mu- (gamma) occurrences,
-        # but only particles with pid 221 getting initially passed in, so this
+        # Only particles with pid 221 getting initially passed in, so this
         # is a sufficient check.
         pre = 'gentag' if pid in [221] else 'genprt'
         # Prevent filling same particle more than once.
@@ -686,6 +690,7 @@ class Ntuple:
             # Loop over decay vertices and collect all daughters.
             for vrt in prt.endVertices():
                 for dtr in vrt.products():
+                    # Add only daughter particles in target decay
                     # eta -> mu+ mu- gamma
                     if self.decay == 'eta2mumugamma' and dtr.particleID().pid() in [-13, 13, 22]:
                         dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
