@@ -10,3 +10,4 @@ mirror-to-github:
     - echo "https://oauth2:${GITHUB_PAT}@github.com" > ~/.git-credentials
     - git remote add github "https://github.com/michael24peters/eta2mumu.git"
     - git push --mirror github
+    - rm -f ~/.git-credentials
