@@ -1,0 +1,12 @@
+mirror-to-github:
+  stage: deploy
+  image: alpine/git:latest
+  variables:
+    GIT_DEPTH: 0
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+  script:
+    - git config --global credential.helper store
+    - echo "https://oauth2:${GITHUB_PAT}@github.com" > ~/.git-credentials
+    - git remote add github "https://github.com/michael24peters/eta2mumu.git"
+    - git push --mirror github
