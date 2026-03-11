@@ -120,26 +120,33 @@ from StandardParticles import StdLooseAllPhotons as photons
 from PhysSelPython.Wrappers import Selection, SelectionSequence
 
 # Decay mode config
-daughter_cuts = {
-    "mu+": "(PT > 500*MeV) & (P > 3*GeV)",
-    "mu-": "(PT > 500*MeV) & (P > 3*GeV)"
-}
+daughter_cuts = {}
 required_selections = [muons]
 if DECAY == 'eta2mumugamma':
     # Append gamma cuts and selection
+    daughter_cuts["mu+"] = "(PT > 500*MeV) & (P > 3*GeV)"
+    daughter_cuts["mu-"] = "(PT > 500*MeV) & (P > 3*GeV)"
     daughter_cuts["gamma"] = "(PT > 500*MeV) & (CL > 0.2)"
     required_selections.append(photons)
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuGamma' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- gamma"
 elif DECAY == 'eta2mumu':
+    daughter_cuts["mu+"] = "(PT > 500*MeV) & (P > 3*GeV)"
+    daughter_cuts["mu-"] = "(PT > 500*MeV) & (P > 3*GeV)"
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMu' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu-"
 elif DECAY == 'eta2mumumumu':
+    # Lower PT requirement for more final state particles
+    daughter_cuts["mu+"] = "(PT > 250*MeV) & (P > 3*GeV)"
+    daughter_cuts["mu-"] = "(PT > 250*MeV) & (P > 3*GeV)"
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuMuMu' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- mu+ mu-"
 elif DECAY == 'eta2mumuee':
-    daughter_cuts["e+"] = "(PT > 500*MeV) & (CL > 0.2)"
-    daughter_cuts["e-"] = "(PT > 500*MeV) & (CL > 0.2)"
+    # Lower PT requirement for more final state particles
+    daughter_cuts["mu+"] = "(PT > 250*MeV) & (P > 3*GeV)"
+    daughter_cuts["mu-"] = "(PT > 250*MeV) & (P > 3*GeV)"
+    daughter_cuts["e+"] = "(PT > 250*MeV) & (CL > 0.2)"
+    daughter_cuts["e-"] = "(PT > 250*MeV) & (CL > 0.2)"
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuEE' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- e+ e-"
 
