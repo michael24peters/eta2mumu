@@ -18,10 +18,10 @@ jobs:
 
       - name: Mirror to CERN GitLab
         env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_PAT: ${{ secrets.GITLAB_PAT }}
         run: |
           trap 'rm -f ~/.git-credentials' EXIT
           git config --global credential.helper store
-          echo "https://oauth2:${GITLAB_TOKEN}@gitlab.cern.ch" > ~/.git-credentials
+          echo "https://oauth2:${GITLAB_PAT}@gitlab.cern.ch" > ~/.git-credentials
           git remote add gitlab "https://gitlab.cern.ch/LHCb-RD/uc-etas/eta2mumu"
           git push --mirror -o ci.skip gitlab
