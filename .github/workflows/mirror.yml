@@ -23,4 +23,5 @@ jobs:
           git config --global credential.helper store
           echo "https://oauth2:${GITLAB_TOKEN}@gitlab.cern.ch" > ~/.git-credentials
           git remote add gitlab "https://gitlab.cern.ch/michael24peters/eta2mumu.git"
-          git push --mirror gitlab
+          git push --mirror -o ci.skip gitlab
+          rm -f ~/.git-credentials
