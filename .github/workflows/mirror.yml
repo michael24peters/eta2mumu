@@ -1,0 +1,26 @@
+name: Mirror to CERN GitLab
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to CERN GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          git config --global credential.helper store
+          echo "https://oauth2:${GITLAB_TOKEN}@gitlab.cern.ch" > ~/.git-credentials
+          git remote add gitlab "https://gitlab.cern.ch/michael24peters/eta2mumu.git"
+          git push --mirror gitlab
