@@ -21,9 +21,52 @@ This repository is kept in sync between GitHub and CERN GitLab:
 
 ### One-time admin setup
 
-These steps need to be performed **once** by the repository owner before anyone can use the GitLab workflow.
+Both sync directions each require a secret token. Follow **both** sections below.
 
-#### Step 1 – Create a GitHub Personal Access Token (PAT)
+---
+
+#### Part A – GitHub → GitLab (mirror on every GitHub push)
+
+This direction is handled by `.github/workflows/mirror.yml`. It authenticates to CERN GitLab using a CERN GitLab Personal Access Token stored as a GitHub Actions secret.
+
+> **2FA / SSO note:** CERN GitLab accounts are protected by CERN Single Sign-On. When 2FA is active on your account you **cannot** use your CERN password for HTTPS git operations — you must use a Personal Access Token instead. The steps below create that token.
+
+**Step A1 – Create a CERN GitLab Personal Access Token**
+
+1. Log in to [gitlab.cern.ch](https://gitlab.cern.ch) with your CERN credentials.
+2. Click your avatar (top-right) → **Edit profile**.
+3. In the left sidebar click **Access Tokens**.
+4. Click **Add new token**.
+5. Fill in the form:
+   | Field | Value |
+   |---|---|
+   | Token name | `github-mirror` (or any descriptive name) |
+   | Expiration date | Set a date that suits your workflow (or leave blank for no expiry) |
+   | Scopes | ✅ **`write_repository`** (grants push access) |
+6. Click **Create personal access token**.
+7. **Copy the token value immediately** — GitLab only shows it once.
+
+**Step A2 – Add the CERN GitLab PAT as a GitHub Actions secret**
+
+1. Open the GitHub repository: `https://github.com/michael24peters/eta2mumu`.
+2. Click **Settings** → **Secrets and variables** → **Actions**.
+3. Click **New repository secret**.
+4. Fill in the form:
+   | Field | Value |
+   |---|---|
+   | Name | `GITLAB_TOKEN` |
+   | Secret | *(paste the token from Step A1)* |
+5. Click **Add secret**.
+
+Once this secret is in place the `mirror` GitHub Actions job will authenticate successfully and push all branches and tags to `gitlab.cern.ch/michael24peters/eta2mumu`.
+
+---
+
+#### Part B – GitLab → GitHub (mirror on every GitLab push)
+
+This direction is handled by `.gitlab-ci.yml`. It authenticates to GitHub using a GitHub Personal Access Token stored as a GitLab CI/CD variable.
+
+**Step B1 – Create a GitHub Personal Access Token**
 
 1. Log in to [github.com](https://github.com).
 2. Click your avatar → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**.
@@ -33,7 +76,7 @@ These steps need to be performed **once** by the repository owner before anyone 
 6. Under **Select scopes**, tick **`repo`** (full control of private repositories).
 7. Click **Generate token** and **copy the token value** – you will not be able to see it again.
 
-#### Step 2 – Add the PAT as a CI/CD variable on CERN GitLab
+**Step B2 – Add the GitHub PAT as a CI/CD variable on CERN GitLab**
 
 1. Open the CERN GitLab project page: `https://gitlab.cern.ch/michael24peters/eta2mumu`.
 2. In the left sidebar go to **Settings** → **CI/CD**.
@@ -42,13 +85,13 @@ These steps need to be performed **once** by the repository owner before anyone 
    | Field | Value |
    |---|---|
    | Key | `GITHUB_PAT` |
-   | Value | *(paste the PAT from Step 1)* |
+   | Value | *(paste the PAT from Step B1)* |
    | Type | Variable |
    | Environment scope | `All` |
    | Flags | ✅ **Mask variable** · ✅ **Protect variable** |
 5. Click **Add variable**.
 
-#### Step 3 – Enable GitLab CI/CD pipelines (if not already on)
+**Step B3 – Enable GitLab CI/CD pipelines (if not already on)**
 
 1. In the left sidebar go to **Settings** → **General**.
 2. Expand **Visibility, project features, permissions**.
@@ -81,4 +124,4 @@ git push origin my-feature
 
 After the push, a GitLab CI pipeline named **`mirror-to-github`** runs automatically (visible under **CI/CD → Pipelines** on the GitLab project page). When it succeeds, the changes are reflected on GitHub.
 
-> **Note:** pushes to GitLab trigger the GitHub Actions mirror workflow in turn, which pushes back to GitLab. This is safe — because the content is already identical, git reports "Everything up-to-date" and no new GitLab pipeline fires, preventing an infinite loop.
+> **Loop prevention:** when GitHub Actions mirrors to GitLab it passes `-o ci.skip`, so GitLab will not start a new pipeline for that push — preventing an infinite mirror loop.
