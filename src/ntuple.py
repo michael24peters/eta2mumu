@@ -7,6 +7,8 @@ import ROOT
 import array
 import GaudiPython
 from GaudiPython.Bindings import gbl
+from collections import OrderedDict
+import array
 
 STD = gbl.std
 LHCB = gbl.LHCb
@@ -14,6 +16,7 @@ LHCB = gbl.LHCb
 # Tag configuration.
 TrkCats = [('ve', 1), ('tt', 2), ('it', 3), ('ot', 4), ('mu', 7)]
 # Sprucing lines for Run 2.
+# TODO: check sprucing lines
 TrgLocs = ['Hlt2ExoticaPrmptDiMuonSSTurbo', 
            'Hlt2ExoticaPrmptDiMuonTurbo',
            'Hlt2ExoticaDiMuonNoIPTurbo',
@@ -29,9 +32,7 @@ class Ntuple:
 
     def __init__(self, name, IS_MC, DECAY, tes, genTool, rftTool, pvrTool, velTool,
                  dstTool, detTool, trkTool, l0Tool, hlt1Tool, hlt2Tool):
-        from collections import OrderedDict
-        import ROOT
-        import array
+        self.IS_MC = IS_MC
         self.decay = DECAY
         self.tes = tes
         self.genTool = genTool
@@ -66,10 +67,14 @@ class Ntuple:
         self.vrsInit('pvr', vrsVrt)
         self.vrsInit('tag', ['idx_pvr'] + vrsMom + vrsVrt + vrsTag + vrsTrg)
         self.vrsInit('tag', ['ve_iso0', 've_iso1', 'ln_iso0', 'ln_iso1'])
-        self.vrsInit('prt', ['idx_pvr', 'idx_gen', 'deltar', 'idx_mom'] + vrsMom + vrsPrt)
+        self.vrsInit('prt', ['idx_pvr', 'deltar', 'idx_mom'] + vrsMom + vrsPrt)
 
         # MC data.
-        if IS_MC:
+        if self.IS_MC:
+            # Reco to gen-level mapping
+            self.vrsInit('prt', ['idx_gen'] + vrsMom + vrsPrt)
+            
+            # Gen-level info
             vrsMcp = ['pid', 'q', 'px', 'py', 'pz', 'e', 'x', 'y', 'z']
             self.vrsInit('mcpvr', ['x', 'y', 'z'])
             self.vrsInit('mc', ['idx_pvr', 'idx_mom'] + vrsMcp)
@@ -88,7 +93,6 @@ class Ntuple:
     # ---------------------------------------------------------------------------
 
     def vrsInit(self, pre, vrs):
-        import ROOT
         for v in vrs: self.ntuple['%s_%s' % (pre, v)] = ROOT.vector('double')()
 
     # ---------------------------------------------------------------------------

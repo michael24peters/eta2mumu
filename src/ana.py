@@ -16,6 +16,7 @@ import argparse
 import sys
 import importlib.machinery
 import importlib.util
+from datetime import datetime
 
 # =============================================================================
 
@@ -70,48 +71,75 @@ def parseArgs() -> bool:
 DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 
 # Set flags
-IS_MC = False  # True = MC, False = real data
-IS_SAMPLE = True  # True = sample data, False = analysis production
-DECAY = 'eta2mumu'  # Decay type, change for local tests
+IS_MC = False  # True = MC | False = real data
+IS_SIGNAL = False  # True = signal | False = minbias
+IS_SAMPLE = True  # True = local sample | False = analysis production
+DECAY = 'eta2mumu'  # Decay type
+if DECAY not in DECAYS: 
+    raise ValueError(f"Invalid decay mode. Must be one of {DECAYS}.")
 
-# MC or real data.
-if IS_MC and IS_SAMPLE:
-    DaVinci().DataType = '2018'
-    DaVinci().Lumi = False  # Processing of luminosity data.
-    DaVinci().Simulation = True  # MC simulation data.
-    # Found using "lb-dirac dirac-bookkeeping-production-information 00169948".
-    DaVinci().DDDBtag = 'dddb-20210528-8' # for 00169948
-    DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10' # for 00169948
-    # DaVinci().DDDBtag = 'dddb-20170721-3'  # for 00090844
-    # DaVinci().CondDBtag = 'sim-20190128-vc-md100'  # for 00090844
-    IOHelper('ROOT').inputFiles([
-        # 'data/minbias/00090844_00000001_7.AllStreams.dst',  # minbias
-        # 'data/minbias/00090844_00000048_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000055_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000075_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000079_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000108_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000186_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000193_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000207_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000227_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000054_7.AllStreams.dst',
-        # 'data/minbias/00090844_00000176_7.AllStreams.dst',
-    #    'data/norm/00169948_00000003_7.AllStreams.dst',  # eta->mumugamma
-    #    'data/norm/00169948_00000138_7.AllStreams.dst'  # 39112231, sim10b, magdown
-    ],
-        clear=True)
-    
-    # For logging date and time
-    from datetime import datetime
-
+# Local sample
+if IS_SAMPLE:
+    # MC
+    if IS_MC:
+        DaVinci().DataType = '2018'
+        DaVinci().Simulation = True  # MC simulation data.
+        if IS_SIGNAL:
+            # Decay mode
+            if DECAY == 'eta2mumugamma':  # 00169948 root files
+                DaVinci().DDDBtag = 'dddb-20210528-8'
+                DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10'
+                # event type 39112231
+                data_paths = ['data/eta2mumugamma/00169948_00000003_7.AllStreams.dst',
+                            #   'data/eta2mumugamma/00169948_00000138_7.AllStreams.dst'
+                ]
+            elif DECAY == 'eta2mumu':  # 00358503 root files
+                DaVinci().DDDBtag = '2018-v03.06'
+                DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10'
+                # event type 39112031
+                data_paths = ['data/eta2mumu/00358503_00000016_1.allstreams.dst']
+            else:
+                # TODO: add other decay modes
+                raise ValueError("Invalid decay mode.")
+        # Minbias
+        else:  # 00090844 root files
+            DaVinci().DDDBtag = 'dddb-20170721-3'
+            DaVinci().CondDBtag = 'sim-20190128-vc-md100'
+            data_paths = ['data/minbias/00090844_00000001_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000048_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000055_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000075_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000079_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000108_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000186_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000193_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000207_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000227_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000054_7.AllStreams.dst',
+                        #   'data/minbias/00090844_00000176_7.AllStreams.dst',
+            ]
+    # Data
+    else:
+        data_paths = ['data/00209985_00000332_1.leptonic.mdst']
+    IOHelper('ROOT').inputFiles(data_paths, clear=True)
     # Get current date and time, append .root file extension
     extension = "_" + str(datetime.now().strftime("%Y%m%d")) + ".root"
-elif not IS_SAMPLE:
-    DaVinci().Lumi = False  # Processing of luminosity data.
+# Analysis production
+else:
     backwards = parseArgs()
     # Output file
     outfile = f"{ProdConf().OutputFilePrefix}.{ProdConf().OutputFileTypes[0]}"
+    
+    # Data
+    if not IS_MC:
+        from Configurables import DstConf, TurboConf
+        from PhysConf.Filters import LoKi_Filters
+        # TODO: check below info, get HLT2 code
+        hlt = LoKi_Filters(HLT2_Code = 
+                        "HLT_PASS_RE('.*Hlt2Exotica.*TurboDecision.*')")
+        DstConf().Turbo = True
+        TurboConf().PersistReco = True
+        DaVinci().EventPreFilters = hlt.filters('TriggerFilters')
 
 # Reconstruction.
 from Configurables import CombineParticles
@@ -155,7 +183,7 @@ print(f"Writing output to {outfile}")  # debug
 # Combination cuts
 combination_cuts = (
     "(ADAMASS('eta') < 150*MeV) & "  # change based on side bands
-    "(AMAXDOCA('') < 0.4*mm) & "  # doca btwn children
+    "(AMAXDOCA('') < 0.4*mm) & "  # doca between children
     # possibly change TRCHI2DOF to 2.5
     "(AMAXCHILD('mu-' == ABSID, TRCHI2DOF) < 3) & "  # track
     "(AMINCHILD('mu-' == ABSID, PROBNNmu) > 0.4)"  # muon weights
@@ -163,7 +191,7 @@ combination_cuts = (
 
 # Apply cuts
 comb = CombineParticles(
-    'combEtaMuMuGamma',
+    'comb',
     DecayDescriptor=decay_descriptor,
     DaughtersCuts=daughter_cuts,
     CombinationCut=combination_cuts,
@@ -173,12 +201,12 @@ comb = CombineParticles(
 
 # Selection
 sel_comb = Selection(
-    'selEtaMuMuGamma',
+    'sel',
     Algorithm=comb,
     RequiredSelections=required_selections)
 
 # Final selection sequence
-seq = SelectionSequence('seqMuMuGamma', TopSelection=sel_comb)
+seq = SelectionSequence('seq', TopSelection=sel_comb)
 
 # DaVinci algorithm sequence.
 DaVinci().appendToMainSequence([seq])
