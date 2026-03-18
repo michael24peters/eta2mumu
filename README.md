@@ -7,3 +7,18 @@ A `.root` file will be generated in the base directory, which is broken into the
 `plots/` contains scripts to plot the leaves within the ntuple, e.g. `mcprt_pid`. These plots should be stored in `figs/`.
 
 `scripts/` contains the scripts used to perform this analysis (fill the ntuple and other accessory operations).
+
+## Usage
+
+Go inside `ana.py` and you will see near the top the following flags:
+
+- `IS_MC`: True = MC, False = Run 2 data
+- `IS_SIGNAL`: True = signal, False = minbias
+- `IS_SAMPLE`: True = local sample (for testing), False = analysis production
+- `DECAY`: string of decay type. Current options:
+    - `'eta2mumu'`
+    - `'eta2mumugamma'`
+    - `'eta2mumumumu'`
+    - `'eta2mumuee'`
+
+Change these flags as appropriate. While these could easily be made into command line arguments, I don't want to mess with the analysis production flags that get passed in through parseArgs() and figure out how to make it work. This system works fine.

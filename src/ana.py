@@ -71,21 +71,26 @@ def parseArgs() -> bool:
 DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 
 # Set flags
-IS_MC = False  # True = MC | False = real data
-IS_SIGNAL = False  # True = signal | False = minbias
+IS_MC = True  # True = MC | False = real data
+IS_SIGNAL = True  # True = signal | False = minbias
 IS_SAMPLE = True  # True = local sample | False = analysis production
 DECAY = 'eta2mumu'  # Decay type
 if DECAY not in DECAYS: 
     raise ValueError(f"Invalid decay mode. Must be one of {DECAYS}.")
 
+DaVinci().DataType = '2018'
+DaVinci().Lumi = True  # Processing luminosity data
 # Local sample
 if IS_SAMPLE:
     # MC
     if IS_MC:
-        DaVinci().DataType = '2018'
+        DaVinci().Lumi = False  # No luminosity data for MC.
         DaVinci().Simulation = True  # MC simulation data.
         if IS_SIGNAL:
             # Decay mode
+            # Find DaVinci configs using 
+            # `lb-dirac dirac-bookkeeping-production-information DATA_ID`, e.g.,
+            # `00169948` for eta -> mu mu gamma.
             if DECAY == 'eta2mumugamma':  # 00169948 root files
                 DaVinci().DDDBtag = 'dddb-20210528-8'
                 DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10'
@@ -119,10 +124,15 @@ if IS_SAMPLE:
                         #   'data/minbias/00090844_00000176_7.AllStreams.dst',
             ]
     # Data
-    else:
+    else: 
+        DaVinci().Simulation = False  # real data
+        DaVinci().DDDBtag = 'dddb-20220927-2018'
+        DaVinci().CondDBtag = 'cond-20200921'
         data_paths = ['data/00209985_00000332_1.leptonic.mdst']
+
+    # Get input data.
     IOHelper('ROOT').inputFiles(data_paths, clear=True)
-    # Get current date and time, append .root file extension
+    # Use current date + '.root' as file suffix.
     extension = "_" + str(datetime.now().strftime("%Y%m%d")) + ".root"
 # Analysis production
 else:
@@ -145,13 +155,13 @@ else:
 from Configurables import CombineParticles
 from StandardParticles import StdLooseMuons as muons
 from StandardParticles import StdLooseAllPhotons as photons
+from StandardParticles import StdLooseElectrons as electrons
 from PhysSelPython.Wrappers import Selection, SelectionSequence
 
 # Decay mode config
 daughter_cuts = {}
 required_selections = [muons]
 if DECAY == 'eta2mumugamma':
-    # Append gamma cuts and selection
     daughter_cuts["mu+"] = "(PT > 500*MeV) & (P > 3*GeV)"
     daughter_cuts["mu-"] = "(PT > 500*MeV) & (P > 3*GeV)"
     daughter_cuts["gamma"] = "(PT > 500*MeV) & (CL > 0.2)"
@@ -164,17 +174,18 @@ elif DECAY == 'eta2mumu':
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMu' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu-"
 elif DECAY == 'eta2mumumumu':
-    # Lower PT requirement for more final state particles
+    # Half PT requirement for twice the number of final state particles
     daughter_cuts["mu+"] = "(PT > 250*MeV) & (P > 3*GeV)"
     daughter_cuts["mu-"] = "(PT > 250*MeV) & (P > 3*GeV)"
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuMuMu' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- mu+ mu-"
 elif DECAY == 'eta2mumuee':
-    # Lower PT requirement for more final state particles
+    # Half PT requirement for twice the number of final state particles
     daughter_cuts["mu+"] = "(PT > 250*MeV) & (P > 3*GeV)"
     daughter_cuts["mu-"] = "(PT > 250*MeV) & (P > 3*GeV)"
     daughter_cuts["e+"] = "(PT > 250*MeV) & (CL > 0.2)"
     daughter_cuts["e-"] = "(PT > 250*MeV) & (CL > 0.2)"
+    required_selections.append(electrons)
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuEE' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- e+ e-"
 
