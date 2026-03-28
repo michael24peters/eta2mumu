@@ -10,7 +10,7 @@ A `.root` file will be generated in the base directory, which is broken into the
 
 ## Usage
 
-Go inside `ana.py` and you will see near the top the following flags:
+In `ana.py` you will see near the top the following flags:
 
 - `IS_MC`: True = MC, False = Run 2 data
 - `IS_SIGNAL`: True = signal, False = minbias

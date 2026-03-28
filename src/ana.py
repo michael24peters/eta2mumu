@@ -62,7 +62,7 @@ def parseArgs() -> bool:
     elif opt == 'False': backwards = False
     else: raise ValueError("Invalid input, must be 'True' or 'False'")
 
-    return backwards, args.decay
+    return backwards
 
 
 # =============================================================================
@@ -71,15 +71,15 @@ def parseArgs() -> bool:
 DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 
 # Set flags
-IS_MC = True  # True = MC | False = real data
-IS_SIGNAL = True  # True = signal | False = minbias
+IS_MC = False  # True = MC | False = real data
+IS_SIGNAL = False  # True = signal | False = minbias
 IS_SAMPLE = True  # True = local sample | False = analysis production
 DECAY = 'eta2mumu'  # Decay type
 if DECAY not in DECAYS: 
     raise ValueError(f"Invalid decay mode. Must be one of {DECAYS}.")
 
 DaVinci().DataType = '2018'
-DaVinci().Lumi = True  # Processing luminosity data
+DaVinci().Lumi = False  # Processing luminosity data
 # Local sample
 if IS_SAMPLE:
     # MC
@@ -87,24 +87,25 @@ if IS_SAMPLE:
         DaVinci().Lumi = False  # No luminosity data for MC.
         DaVinci().Simulation = True  # MC simulation data.
         if IS_SIGNAL:
-            # Decay mode
             # Find DaVinci configs using 
             # `lb-dirac dirac-bookkeeping-production-information DATA_ID`, e.g.,
-            # `00169948` for eta -> mu mu gamma.
+            # `00169948` for eta -> mu mu gamma 
+            #
+            # Decay mode
             if DECAY == 'eta2mumugamma':  # 00169948 root files
                 DaVinci().DDDBtag = 'dddb-20210528-8'
                 DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10'
-                # event type 39112231
+                # event type 39112231 (MC 2018)
                 data_paths = ['data/eta2mumugamma/00169948_00000003_7.AllStreams.dst',
                             #   'data/eta2mumugamma/00169948_00000138_7.AllStreams.dst'
                 ]
             elif DECAY == 'eta2mumu':  # 00358503 root files
                 DaVinci().DDDBtag = '2018-v03.06'
                 DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10'
-                # event type 39112031
+                # event type 39112031 (MC 2018)
                 data_paths = ['data/eta2mumu/00358503_00000016_1.allstreams.dst']
             else:
-                # TODO: add other decay modes
+                # TODO: add other decay modes for local sample tests
                 raise ValueError("Invalid decay mode.")
         # Minbias
         else:  # 00090844 root files
@@ -125,7 +126,10 @@ if IS_SAMPLE:
             ]
     # Data
     else: 
-        DaVinci().Simulation = False  # real data
+        DaVinci().Simulation = False
+        DaVinci().InputType = 'MDST'
+        DaVinci().RootInTES = '/Event/Leptonic/Turbo'
+        DaVinci().Turbo = True
         DaVinci().DDDBtag = 'dddb-20220927-2018'
         DaVinci().CondDBtag = 'cond-20200921'
         data_paths = ['data/00209985_00000332_1.leptonic.mdst']
@@ -142,13 +146,12 @@ else:
     
     # Data
     if not IS_MC:
-        from Configurables import DstConf, TurboConf
         from PhysConf.Filters import LoKi_Filters
-        # TODO: check below info, get HLT2 code
+        DaVinci().InputType = 'MDST'
+        DaVinci().RootInTES = '/Event/Leptonic/Turbo'
+        DaVinci().Turbo = True
         hlt = LoKi_Filters(HLT2_Code = 
-                        "HLT_PASS_RE('.*Hlt2Exotica.*TurboDecision.*')")
-        DstConf().Turbo = True
-        TurboConf().PersistReco = True
+                           "HLT_PASS_RE('.*Hlt2Exotica.*TurboDecision.*')")
         DaVinci().EventPreFilters = hlt.filters('TriggerFilters')
 
 # Reconstruction.

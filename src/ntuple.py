@@ -416,10 +416,15 @@ class Ntuple:
         # DaVinciSmartAssociator
         if pre == 'prt' and self.IS_MC:
             try:
+                # Initial dr value.
+                deltar = -1.0
                 # Relate reconstructed particle to generator-level particle.
                 gen = None; wgt = 0; rels = self.genTool.relatedMCPs(prt)
                 # Select match with heighest weight
-                for rel in rels: gen = rel.to() if rel.weight() > wgt else gen
+                for rel in rels:
+                    if rel.weight() > wgt:
+                        gen = rel.to()
+                        wgt = rel.weight()
                 if gen: (genPre, genIdx) = self.fillMcp(gen)
                 # If DaVinciSmartAssociator fails (no match), use delta r
                 # matching
@@ -432,22 +437,19 @@ class Ntuple:
                         dphi = mcp.momentum().phi() - prt.momentum().phi()
                         deta = mcp.momentum().eta() - prt.momentum().eta()
                         # Calculate delta r
-                        deltar = sqrt(dphi**2 + deta**2)  
+                        dr = sqrt(dphi**2 + deta**2)
                         # Check if this is smaller than the current 
                         # minimum delta r. If so, update mindr and 
                         # relp. Add info to ntuple for this daughter's
                         # linked MCParticle
-                        if deltar < mindr: mindr = deltar; relp = mcp
+                        if dr < mindr: mindr = dr; relp = mcp
                     if relp: 
                         (genPre, genIdx) = self.fillMcp(relp)
-                        self.fill('%s_deltar' % pre, mindr)
-                    else: 
-                        genIdx = -1
-                        self.fill('%s_deltar' % pre, -1)
+                        deltar = mindr
+                    else: genIdx = -1
+                self.fill('%s_deltar' % pre, deltar)
                 self.fill('%s_idx_gen' % pre, genIdx)
-            except: pass
-            # TODO: save value of deltaR to ntuple so we can make offline cuts 
-            # on it later
+            except: pass  # Could fill deltar and idx_gen with -1, won't for now
 
         # IP.
         from ctypes import c_double
