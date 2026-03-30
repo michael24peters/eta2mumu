@@ -128,7 +128,7 @@ if IS_SAMPLE:
     else: 
         DaVinci().Simulation = False
         DaVinci().InputType = 'MDST'
-        DaVinci().RootInTES = '/Event/Leptonic/Turbo'
+        DaVinci().RootInTES = '/Event/Leptons/Turbo'
         DaVinci().Turbo = True
         DaVinci().DDDBtag = 'dddb-20220927-2018'
         DaVinci().CondDBtag = 'cond-20200921'
@@ -148,7 +148,7 @@ else:
     if not IS_MC:
         from PhysConf.Filters import LoKi_Filters
         DaVinci().InputType = 'MDST'
-        DaVinci().RootInTES = '/Event/Leptonic/Turbo'
+        DaVinci().RootInTES = '/Event/Leptons/Turbo'
         DaVinci().Turbo = True
         hlt = LoKi_Filters(HLT2_Code = 
                            "HLT_PASS_RE('.*Hlt2Exotica.*TurboDecision.*')")
