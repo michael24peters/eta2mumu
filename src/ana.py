@@ -71,7 +71,7 @@ def parseArgs() -> bool:
 DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 
 # Set flags
-IS_MC = False  # True = MC | False = real data
+IS_MC = False  # True = MC | False = Turbo Run 2 data
 IS_SIGNAL = False  # True = signal | False = minbias
 IS_SAMPLE = True  # True = local sample | False = analysis production
 DECAY = 'eta2mumu'  # Decay type
@@ -128,11 +128,12 @@ if IS_SAMPLE:
     else: 
         DaVinci().Simulation = False
         DaVinci().InputType = 'MDST'
-        DaVinci().RootInTES = '/Event/Leptons/Turbo'
+        # Check RootInTES path using tes_explorer.py
+        DaVinci().RootInTES = '/Event/Leptons/Turbo'  
         DaVinci().Turbo = True
-        DaVinci().DDDBtag = 'dddb-20220927-2018'
-        DaVinci().CondDBtag = 'cond-20200921'
-        data_paths = ['data/00209985_00000332_1.leptonic.mdst']
+        DaVinci().DDDBtag = 'dddb-20171030-3'
+        DaVinci().CondDBtag = 'cond-20180202'
+        data_paths = ['data/00080042_00003916_1.leptons.mdst']
 
     # Get input data.
     IOHelper('ROOT').inputFiles(data_paths, clear=True)
@@ -147,9 +148,12 @@ else:
     # Data
     if not IS_MC:
         from PhysConf.Filters import LoKi_Filters
+        DaVinci().Simulation = False
         DaVinci().InputType = 'MDST'
         DaVinci().RootInTES = '/Event/Leptons/Turbo'
         DaVinci().Turbo = True
+        DaVinci().DDDBtag = 'dddb-20171030-3'
+        DaVinci().CondDBtag = 'cond-20180202'
         hlt = LoKi_Filters(HLT2_Code = 
                            "HLT_PASS_RE('.*Hlt2Exotica.*TurboDecision.*')")
         DaVinci().EventPreFilters = hlt.filters('TriggerFilters')
@@ -163,12 +167,14 @@ from PhysSelPython.Wrappers import Selection, SelectionSequence
 
 # Decay mode config
 daughter_cuts = {}
-required_selections = [muons]
+# Do not use StdLoose* if looking over (turbo) data. They are not available in
+# the TES.
+required_selections = [muons] if IS_MC else []
 if DECAY == 'eta2mumugamma':
     daughter_cuts["mu+"] = "(PT > 500*MeV) & (P > 3*GeV)"
     daughter_cuts["mu-"] = "(PT > 500*MeV) & (P > 3*GeV)"
     daughter_cuts["gamma"] = "(PT > 500*MeV) & (CL > 0.2)"
-    required_selections.append(photons)
+    if IS_MC: required_selections.append(photons)
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuGamma' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- gamma"
 elif DECAY == 'eta2mumu':
@@ -188,7 +194,7 @@ elif DECAY == 'eta2mumuee':
     daughter_cuts["mu-"] = "(PT > 250*MeV) & (P > 3*GeV)"
     daughter_cuts["e+"] = "(PT > 250*MeV) & (CL > 0.2)"
     daughter_cuts["e-"] = "(PT > 250*MeV) & (CL > 0.2)"
-    required_selections.append(electrons)
+    if IS_MC: required_selections.append(electrons)
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuEE' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- e+ e-"
 
@@ -227,11 +233,11 @@ DaVinci().appendToMainSequence([seq])
 
 # TisTos configuration.
 from Configurables import ToolSvc, TriggerTisTos
-for stage in ('Hlt1', 'Hlt2', 'Strip/Phys'):
+for stage in ('Hlt1', 'Hlt2'):
     ToolSvc().addTool(TriggerTisTos, stage + "TriggerTisTos")
     tool = getattr(ToolSvc(), stage + "TriggerTisTos")
-    tool.HltDecReportsLocation = '/Event/' + stage + '/DecReports'
-    tool.HltSelReportsLocation = '/Event/' + stage + '/SelReports'
+    tool.HltDecReportsLocation = DaVinci().RootInTES + stage + '/DecReports'
+    tool.HltSelReportsLocation = DaVinci().RootInTES + stage + '/SelReports'
 
 # GaudiPython configuration.
 import GaudiPython
@@ -302,12 +308,23 @@ while evtnum < evtmax:
         ntuple.ntuple['evt_tck'][0] = daq.triggerConfigurationKey()
     except: continue
     # Save number of primary vertices
-    try: ntuple.ntuple['pvr_n'][0] = len(tes['Rec/Vertex/Primary'])
-    except: pass
+    if IS_MC:
+        try: ntuple.ntuple['pvr_n'][0] = len(tes['Rec/Vertex/Primary'])
+        except: pass
+    # Run 2 data
+    else:
+        try: ntuple.ntuple['pvr_n'][0] = len(tes[os.path.join(DaVinci().RootInTES,'Rec/Vertex/Primary')])
+        except: pass
     try: ntuple.ntuple['evt_spd'][0] = GaudiPython.gbl.LoKi.L0.DataValue(
         'Spd(Mult)')(tes['Trig/L0/L0DUReport'])
     except: pass
 
+    """
+    I'm suspicious of all lines after this point. TODO: consult with Phil.
+
+    See: https://gitlab.cern.ch/ncooke/quarkoniainjetsframework/-/blob/master/daVinciScript/PsiJetCorrected.py?ref_type=heads
+    Also see: DiMuon.py
+    """
     # Create tools.
     if not ntuple.detTool: ntuple.detTool = gaudi.detSvc()[
         '/dd/Structure/LHCb/BeforeMagnetRegion/Velo']
@@ -326,7 +343,7 @@ while evtnum < evtmax:
                     ntuple.fillMcp(mcp)
                     fill = True
 
-    pvrs = tes['Rec/Vertex/Primary']
+    pvrs = tes['Rec/Vertex/Primary']  # TODO: won't work for Run 2 data
     trks = tes['Rec/Track/Best']
     prts = tes[seq.outputLocation()]
     sigs = []

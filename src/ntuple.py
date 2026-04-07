@@ -294,7 +294,8 @@ class Ntuple:
         self.fillMom(pre, mom)
 
         # Trigger.
-        # TOS == Trigger On Signal, TIS == Trigger Independent of Signal,
+        # TOS == Trigger On Signal, 
+        # TIS == Trigger Independent of Signal,
         # TOB == Trigger On Both.
         # setOfflineInput(prt) sets candidate to analyze for the trigger tool.
         self.l0Tool.setOfflineInput(prt)
