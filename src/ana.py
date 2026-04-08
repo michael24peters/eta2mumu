@@ -17,6 +17,7 @@ import sys
 import importlib.machinery
 import importlib.util
 from datetime import datetime
+import os
 
 # =============================================================================
 
@@ -129,8 +130,11 @@ if IS_SAMPLE:
         DaVinci().Simulation = False
         DaVinci().InputType = 'MDST'
         # Check RootInTES path using tes_explorer.py
-        DaVinci().RootInTES = '/Event/Leptons/Turbo'  
+        DaVinci().RootInTES = '/Event/Leptons/Turbo/'
         DaVinci().Turbo = True
+        from Configurables import TurboConf
+        # Points Persist Reco to the correct location in the TES
+        TurboConf().RunPersistRecoUnpacking = True
         DaVinci().DDDBtag = 'dddb-20171030-3'
         DaVinci().CondDBtag = 'cond-20180202'
         data_paths = ['data/00080042_00003916_1.leptons.mdst']
@@ -152,9 +156,11 @@ else:
         DaVinci().InputType = 'MDST'
         DaVinci().RootInTES = '/Event/Leptons/Turbo'
         DaVinci().Turbo = True
+        from Configurables import TurboConf
+        TurboConf().RunPersistRecoUnpacking = True
         DaVinci().DDDBtag = 'dddb-20171030-3'
         DaVinci().CondDBtag = 'cond-20180202'
-        hlt = LoKi_Filters(HLT2_Code = 
+        hlt = LoKi_Filters(HLT2_Code =
                            "HLT_PASS_RE('.*Hlt2Exotica.*TurboDecision.*')")
         DaVinci().EventPreFilters = hlt.filters('TriggerFilters')
 
@@ -164,17 +170,22 @@ from StandardParticles import StdLooseMuons as muons
 from StandardParticles import StdLooseAllPhotons as photons
 from StandardParticles import StdLooseElectrons as electrons
 from PhysSelPython.Wrappers import Selection, SelectionSequence
+# For Turbo data, RebuildSelection is required so that standard particle makers
+# source their inputs from the Turbo persistent reco containers.
+if not IS_MC:
+    from PhysConf.Selections import RebuildSelection
+    muons   = RebuildSelection(muons)
+    photons = RebuildSelection(photons)
+    electrons = RebuildSelection(electrons)
 
 # Decay mode config
 daughter_cuts = {}
-# Do not use StdLoose* if looking over (turbo) data. They are not available in
-# the TES.
-required_selections = [muons] if IS_MC else []
+required_selections = [muons]
 if DECAY == 'eta2mumugamma':
     daughter_cuts["mu+"] = "(PT > 500*MeV) & (P > 3*GeV)"
     daughter_cuts["mu-"] = "(PT > 500*MeV) & (P > 3*GeV)"
     daughter_cuts["gamma"] = "(PT > 500*MeV) & (CL > 0.2)"
-    if IS_MC: required_selections.append(photons)
+    required_selections.append(photons)
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuGamma' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- gamma"
 elif DECAY == 'eta2mumu':
@@ -194,7 +205,7 @@ elif DECAY == 'eta2mumuee':
     daughter_cuts["mu-"] = "(PT > 250*MeV) & (P > 3*GeV)"
     daughter_cuts["e+"] = "(PT > 250*MeV) & (CL > 0.2)"
     daughter_cuts["e-"] = "(PT > 250*MeV) & (CL > 0.2)"
-    if IS_MC: required_selections.append(electrons)
+    required_selections.append(electrons)
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuEE' + ('_mc' if IS_MC else '') + extension
     decay_descriptor = "eta -> mu+ mu- e+ e-"
 
@@ -236,8 +247,12 @@ from Configurables import ToolSvc, TriggerTisTos
 for stage in ('Hlt1', 'Hlt2'):
     ToolSvc().addTool(TriggerTisTos, stage + "TriggerTisTos")
     tool = getattr(ToolSvc(), stage + "TriggerTisTos")
-    tool.HltDecReportsLocation = DaVinci().RootInTES + stage + '/DecReports'
-    tool.HltSelReportsLocation = DaVinci().RootInTES + stage + '/SelReports'
+    if IS_MC:
+        tool.HltDecReportsLocation = '/Event/' + stage + '/DecReports'
+        tool.HltSelReportsLocation = '/Event/' + stage + '/SelReports'
+    else:
+        tool.HltDecReportsLocation = DaVinci().RootInTES + stage + '/DecReports'
+        tool.HltSelReportsLocation = DaVinci().RootInTES + stage + '/SelReports'
 
 # GaudiPython configuration.
 import GaudiPython
@@ -288,12 +303,11 @@ ntuple = Ntuple(outfile, IS_MC, DECAY, tes, genTool, rftTool, pvrTool,
 # Run.
 # local sample
 try: evtmax = args.evtmax if args.evtmax > 0 else float("inf")
+# analysis production
 except: 
-    # analysis production
     try: evtmax = int(sys.argv[1])
     except: evtmax = float("inf")
 evtnum = 0
-
 while evtnum < evtmax:
     gaudi.run(1)  # Advance Gaudi by one event
     if not bool(tes['/Event']): break  # Exit if no data found in TES
@@ -315,16 +329,10 @@ while evtnum < evtmax:
     else:
         try: ntuple.ntuple['pvr_n'][0] = len(tes[os.path.join(DaVinci().RootInTES,'Rec/Vertex/Primary')])
         except: pass
-    try: ntuple.ntuple['evt_spd'][0] = GaudiPython.gbl.LoKi.L0.DataValue(
-        'Spd(Mult)')(tes['Trig/L0/L0DUReport'])
+    # Scintilator pad multiplicity info from L0DUReport
+    try: ntuple.ntuple['evt_spd'][0] = GaudiPython.gbl.LoKi.L0.DataValue('Spd(Mult)')(tes['Trig/L0/L0DUReport'])
     except: pass
 
-    """
-    I'm suspicious of all lines after this point. TODO: consult with Phil.
-
-    See: https://gitlab.cern.ch/ncooke/quarkoniainjetsframework/-/blob/master/daVinciScript/PsiJetCorrected.py?ref_type=heads
-    Also see: DiMuon.py
-    """
     # Create tools.
     if not ntuple.detTool: ntuple.detTool = gaudi.detSvc()[
         '/dd/Structure/LHCb/BeforeMagnetRegion/Velo']
@@ -343,16 +351,26 @@ while evtnum < evtmax:
                     ntuple.fillMcp(mcp)
                     fill = True
 
-    pvrs = tes['Rec/Vertex/Primary']  # TODO: won't work for Run 2 data
-    trks = tes['Rec/Track/Best']
-    prts = tes[seq.outputLocation()]
+    # Get MC data
+    # You could use the RootInTES path for MC as well (since default is ''), but
+    # this is more explicit.
+    # 20260407: removed trks
+    if IS_MC:
+        prts = tes[seq.outputLocation()]
+        pvrs = tes['Rec/Vertex/Primary']
+    # Get Turbo data
+    else:
+        prts = tes[os.path.join(DaVinci().RootInTES, seq.outputLocation())]
+        pvrs = tes[os.path.join(DaVinci().RootInTES, 'Rec/Vertex/Primary')]
+
+    # Fill tag and prt info.
     sigs = []
     try: len(prts); run = True
     except: run = False
     if run:
         for prt in prts:
             sigs += [prt]
-            ntuple.fillPrt(prt, pvrs, trks)
+            ntuple.fillPrt(prt, pvrs)
             fill = True
 
     # Fill ntuple if there is information for this event

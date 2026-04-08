@@ -5,6 +5,7 @@
 
 import ROOT
 import array
+import os
 import GaudiPython
 from GaudiPython.Bindings import gbl
 from collections import OrderedDict
@@ -17,10 +18,12 @@ LHCB = gbl.LHCb
 TrkCats = [('ve', 1), ('tt', 2), ('it', 3), ('ot', 4), ('mu', 7)]
 # Sprucing lines for Run 2.
 # TODO: check sprucing lines
-TrgLocs = ['Hlt2ExoticaPrmptDiMuonSSTurbo', 
-           'Hlt2ExoticaPrmptDiMuonTurbo',
-           'Hlt2ExoticaDiMuonNoIPTurbo',
-           'Hlt2ExoticaDisplDiMuon']
+TrgLocs = [
+    # 'Hlt2ExoticaPrmptDiMuonSSTurbo', 
+    'Hlt2ExoticaPrmptDiMuonTurbo',
+    'Hlt2ExoticaDisplDiMuon',
+    'Hlt2ExoticaDiMuonNoIPTurbo',
+    ]
 
 # =============================================================================
 
@@ -220,7 +223,7 @@ class Ntuple:
 
     # ---------------------------------------------------------------------------
 
-    def fillPrt(self, prt, pvrs=None, prts=None):
+    def fillPrt(self, prt, pvrs=None):
         """
         Fill all available particle (prt) information into ntuple, including
         its primary vertex information (pvrs).
@@ -232,7 +235,9 @@ class Ntuple:
         try: prt = prt.data()
         except: pass
         # Try to get primary vertex associated with particle
-        try: pvr = self.pvrTool.relatedPV(prt, 'Rec/Vertex/Primary')
+        from Configurables import DaVinci
+        pvr_loc = os.path.join(DaVinci().RootInTES, 'Rec/Vertex/Primary') if not self.IS_MC else 'Rec/Vertex/Primary'
+        try: pvr = self.pvrTool.relatedPV(prt, pvr_loc)
         except: pvr = None
         # Recursive base case; check if a composite particle that decays.
         vrt = prt.endVertex()
@@ -310,33 +315,26 @@ class Ntuple:
         self.l0Tool.setTriggerInput('L0MuonDecision')
         trg = self.l0Tool.tisTosTobTrigger()
         self.fill('%s_l0_tos1' % pre, trg.tos())
-        self.l0Tool.setTriggerInput('L0HadronDecision')
-        trg = self.l0Tool.tisTosTobTrigger()
-        self.fill('%s_l0_tis' % pre, trg.tis())
         # HLT1 software trigger
         self.hlt1Tool.setTriggerInput('Hlt1DiMuonNoIPDecision')
         trg = self.hlt1Tool.tisTosTobTrigger()
         self.fill('%s_hlt1_tos0' % pre, trg.tos())
-        self.hlt1Tool.setTriggerInput('Hlt1MultiDiMuonNoIPDecision')
-        trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tos1' % pre, trg.tos())
         self.hlt1Tool.setTriggerInput('Hlt1DiMuonLowMassDecision')
         trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tos2' % pre, trg.tos())
-        self.hlt1Tool.setTriggerInput('Hlt1DiMuonHighMassDecision')
-        trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tos3' % pre, trg.tos())
-        self.hlt1Tool.setTriggerInput('Hlt1.*TrackMVA.*')
-        trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tis' % pre, trg.tis())
+        self.fill('%s_hlt1_tos1' % pre, trg.tos())
         # HLT2 software trigger
         self.hlt2Tool.setTriggerInput('Hlt2Topo.*')
         trg = self.hlt2Tool.tisTosTobTrigger()
         self.fill('%s_hlt2_tis' % pre, trg.tis())
-        for locIdx, loc in enumerate(TrgLocs):
-            self.hlt2Tool.setTriggerInput(loc + 'Decision')
-            trg = self.hlt2Tool.tisTosTobTrigger()
-            self.fill('%s_hlt2_tos%i' % (pre, locIdx), trg.tos())
+        self.hlt2Tool.setTriggerInput('Hlt2ExoticaPrmptDiMuonTurboDecision')
+        trg = self.hlt2Tool.tisTosTobTrigger()
+        self.fill('%s_hlt2_tos0' % pre, trg.tos())
+        self.hlt2Tool.setTriggerInput('Hlt2ExoticaDisplDiMuonDecision')
+        trg = self.hlt2Tool.tisTosTobTrigger()
+        self.fill('%s_hlt2_tos1' % pre, trg.tos())
+        self.hlt2Tool.setTriggerInput('Hlt2ExoticaDiMuonNoIPTurboDecision')
+        trg = self.hlt2Tool.tisTosTobTrigger()
+        self.fill('%s_hlt2_tos2' % pre, trg.tos())
 
         # Particle ID.
         self.fill('%s_pid' % pre, pid)
@@ -455,11 +453,10 @@ class Ntuple:
         # IP.
         from ctypes import c_double
         ip, ipChi2 = c_double(-1.0), c_double(-1.0)
-        self.dstTool.distance(prt, pvr, ip, ipChi2)
-        # Compute Impact Paramter (IP)
+        # Compute Impact Parameter (IP)
         # Measures shortest distance from particle to PV. High IP means
         # particle likely isn't prompt (PV) eta and instead displaced (SV)
-        # other particle(e.g. B or D meson) producing decay that fakes an eta.
+        # other particle (e.g. B or D meson) producing decay that fakes an eta.
         if pvr: self.dstTool.distance(prt, pvr, ip, ipChi2)
         self.fill('%s_ip' % pre, ip.value)  # need to convert c_double to py
         self.fill('%s_ip_chi2' % pre, ipChi2.value)  # same here
