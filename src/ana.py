@@ -1,8 +1,18 @@
-#!/bin/env python
-###############################################################################
-# GaudiPython script for eta -> mu mu (gamma) analysis                        #
-# Author: Michael Peters                                                      #
-###############################################################################
+"""
+GaudiPython script for eta -> mu mu (gamma) analysis
+Author: Michael Peters
+Usage: lb-run DaVinci/v45r8 ipython src/ana.py [--decay <decay-option>] [--is_mc] [--is_signal] [--is_sample]
+
+This analysis ntupling script is built for Run 2 MC and Turbo data, both for
+local samples and analysis production with LHCb. To be even more specific, the
+script is tailored towards 2018 files, which was the last year of Run 2 data.
+
+Note that local samples require already being installed (in ntuples/).
+
+You can find DaVinci configs using
+`lb-dirac dirac-bookkeeping-production-information DATA_ID`, e.g., `00169948`
+for eta -> mu mu gamma
+"""
 
 # DaVinci configuration.
 from Configurables import DaVinci
@@ -23,7 +33,7 @@ import os
 
 def parseArgs() -> bool:
     """
-    Parser method required for GaudiPython to work with AnalysisProductions
+    Parser method required for GaudiPython to work with AnalysisProductions.
 
     Argument parser method required for GaudiPython to work with
     AnalysisProductions because the option files get unsorted.
@@ -65,17 +75,20 @@ def parseArgs() -> bool:
 
     return backwards
 
-
 # =============================================================================
 
 # Possible decay options
 DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 
 # Set flags
-IS_MC = False  # True = MC | False = Turbo Run 2 data
-IS_SIGNAL = False  # True = signal | False = minbias
-IS_SAMPLE = True  # True = local sample | False = analysis production
-DECAY = 'eta2mumu'  # Decay type
+# True = MC | False = Turbo Run 2 data
+IS_MC = False
+# True = signal | False = minbias
+IS_SIGNAL = False
+# True = local sample | False = analysis production
+IS_SAMPLE = False
+# Decay type
+DECAY = 'eta2mumugamma'
 if DECAY not in DECAYS: 
     raise ValueError(f"Invalid decay mode. Must be one of {DECAYS}.")
 
@@ -87,24 +100,22 @@ if IS_SAMPLE:
     if IS_MC:
         DaVinci().Lumi = False  # No luminosity data for MC.
         DaVinci().Simulation = True  # MC simulation data.
+        # Signal sample, i.e., at least one candidate guaranteed per event
         if IS_SIGNAL:
-            # Find DaVinci configs using 
-            # `lb-dirac dirac-bookkeeping-production-information DATA_ID`, e.g.,
-            # `00169948` for eta -> mu mu gamma 
-            #
-            # Decay mode
-            if DECAY == 'eta2mumugamma':  # 00169948 root files
+            if DECAY == 'eta2mumugamma':
                 DaVinci().DDDBtag = 'dddb-20210528-8'
                 DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10'
-                # event type 39112231 (MC 2018)
-                data_paths = ['data/eta2mumugamma/00169948_00000003_7.AllStreams.dst',
-                            #   'data/eta2mumugamma/00169948_00000138_7.AllStreams.dst'
+                # event type 39112231 (MC 2018), 00169948 root files
+                data_paths = [
+                    'data/eta2mumugamma/00169948_00000003_7.AllStreams.dst',
                 ]
-            elif DECAY == 'eta2mumu':  # 00358503 root files
+            elif DECAY == 'eta2mumu':
                 DaVinci().DDDBtag = '2018-v03.06'
                 DaVinci().CondDBtag = 'sim-20201113-8-vc-md100-Sim10'
-                # event type 39112031 (MC 2018)
-                data_paths = ['data/eta2mumu/00358503_00000016_1.allstreams.dst']
+                # event type 39112031 (MC 2018), 00358503 root files
+                data_paths = [
+                    'data/eta2mumu/00358503_00000016_1.allstreams.dst'
+                ]
             else:
                 # TODO: add other decay modes for local sample tests
                 raise ValueError("Invalid decay mode.")
@@ -112,32 +123,15 @@ if IS_SAMPLE:
         else:  # 00090844 root files
             DaVinci().DDDBtag = 'dddb-20170721-3'
             DaVinci().CondDBtag = 'sim-20190128-vc-md100'
-            data_paths = ['data/minbias/00090844_00000001_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000048_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000055_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000075_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000079_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000108_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000186_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000193_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000207_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000227_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000054_7.AllStreams.dst',
-                        #   'data/minbias/00090844_00000176_7.AllStreams.dst',
+            data_paths = [
+                'data/minbias/00090844_00000001_7.AllStreams.dst',
             ]
-    # Data
+    # Sample data
     else: 
-        DaVinci().Simulation = False
-        DaVinci().InputType = 'MDST'
-        # Check RootInTES path using tes_explorer.py
-        DaVinci().RootInTES = '/Event/Leptons/Turbo/'
-        DaVinci().Turbo = True
-        from Configurables import TurboConf
-        # Points Persist Reco to the correct location in the TES
-        TurboConf().RunPersistRecoUnpacking = True
-        DaVinci().DDDBtag = 'dddb-20171030-3'
-        DaVinci().CondDBtag = 'cond-20180202'
-        data_paths = ['data/00080042_00003916_1.leptons.mdst']
+        data_paths = [
+            'data/00080042_00003916_1.leptons.mdst'
+        ]
+        
 
     # Get input data.
     IOHelper('ROOT').inputFiles(data_paths, clear=True)
@@ -149,36 +143,46 @@ else:
     # Output file
     outfile = f"{ProdConf().OutputFilePrefix}.{ProdConf().OutputFileTypes[0]}"
     
-    # Data
-    if not IS_MC:
-        from PhysConf.Filters import LoKi_Filters
-        DaVinci().Simulation = False
-        DaVinci().InputType = 'MDST'
-        DaVinci().RootInTES = '/Event/Leptons/Turbo'
-        DaVinci().Turbo = True
-        from Configurables import TurboConf
-        TurboConf().RunPersistRecoUnpacking = True
-        DaVinci().DDDBtag = 'dddb-20171030-3'
-        DaVinci().CondDBtag = 'cond-20180202'
-        hlt = LoKi_Filters(HLT2_Code =
-                           "HLT_PASS_RE('.*Hlt2Exotica.*TurboDecision.*')")
-        DaVinci().EventPreFilters = hlt.filters('TriggerFilters')
-
 # Reconstruction.
 from Configurables import CombineParticles
 from StandardParticles import StdLooseMuons as muons
 from StandardParticles import StdLooseAllPhotons as photons
 from StandardParticles import StdLooseElectrons as electrons
 from PhysSelPython.Wrappers import Selection, SelectionSequence
-# For Turbo data, RebuildSelection is required so that standard particle makers
-# source their inputs from the Turbo persistent reco containers.
+# Data configuration
 if not IS_MC:
+    from PhysConf.Filters import LoKi_Filters
+    DaVinci().Simulation = False
+    DaVinci().InputType = 'MDST'
+    DaVinci().RootInTES = '/Event/Leptons/Turbo'
+    DaVinci().Turbo = True
+    from Configurables import TurboConf
+    TurboConf().RunPersistRecoUnpacking = True
+    DaVinci().DDDBtag = 'dddb-20171030-3'
+    DaVinci().CondDBtag = 'cond-20180202'
+    hlt = LoKi_Filters(HLT2_Code =
+        "HLT_PASS('Hlt2ExoticaPrmptDiMuonTurboDecision') | "
+        "HLT_PASS('Hlt2ExoticaDisplDiMuonDecision') | "
+        "HLT_PASS('Hlt2ExoticaDiMuonNoIPTurboDecision')")
+    DaVinci().EventPreFilters = hlt.filters('TriggerFilters')
+    # For Turbo data, RebuildSelection is required so that standard particle
+    # makers source their inputs from the Turbo persistent reco containers.
     from PhysConf.Selections import RebuildSelection
     muons   = RebuildSelection(muons)
     photons = RebuildSelection(photons)
     electrons = RebuildSelection(electrons)
 
-# Decay mode config
+# --- Decay mode config --------------------------------------------------------
+# --- Combination cuts ---
+combination_cuts = (
+    "(ADAMASS('eta') < 150*MeV) & "  # change based on side bands
+    "(AMAXDOCA('') < 0.4*mm) & "  # doca between children
+    # possibly change TRCHI2DOF to 2.5
+    "(AMAXCHILD('mu-' == ABSID, TRCHI2DOF) < 3) & "  # track
+    "(AMINCHILD('mu-' == ABSID, PROBNNmu) > 0.4)"  # muon weights
+)
+
+# --- Daughter cuts ---
 daughter_cuts = {}
 required_selections = [muons]
 if DECAY == 'eta2mumugamma':
@@ -198,6 +202,12 @@ elif DECAY == 'eta2mumumumu':
     daughter_cuts["mu+"] = "(PT > 250*MeV) & (P > 3*GeV)"
     daughter_cuts["mu-"] = "(PT > 250*MeV) & (P > 3*GeV)"
     if IS_SAMPLE: outfile = 'ntuples/eta2MuMuMuMu' + ('_mc' if IS_MC else '') + extension
+    # Apply cuts to ensure at least 2 muons pass the trigger, then persist reco
+    # will save the whole event and the other dimuon pair can be picked up in
+    # reconstruction. If all 4 had a PT > 500 MeV cut, we would lose a lot of
+    # signal unecessarily.
+    combination_cuts += " & (ANUM((ABSID == 'mu+') & (PT > 500*MeV)) > 0)"
+    combination_cuts += " & (ANUM((ABSID == 'mu-') & (PT > 500*MeV)) > 0)"
     decay_descriptor = "eta -> mu+ mu- mu+ mu-"
 elif DECAY == 'eta2mumuee':
     # Half PT requirement for twice the number of final state particles
@@ -211,16 +221,7 @@ elif DECAY == 'eta2mumuee':
 
 print(f"Writing output to {outfile}")  # debug
 
-# Combination cuts
-combination_cuts = (
-    "(ADAMASS('eta') < 150*MeV) & "  # change based on side bands
-    "(AMAXDOCA('') < 0.4*mm) & "  # doca between children
-    # possibly change TRCHI2DOF to 2.5
-    "(AMAXCHILD('mu-' == ABSID, TRCHI2DOF) < 3) & "  # track
-    "(AMINCHILD('mu-' == ABSID, PROBNNmu) > 0.4)"  # muon weights
-)
-
-# Apply cuts
+# --- Apply cuts ---
 comb = CombineParticles(
     'comb',
     DecayDescriptor=decay_descriptor,
@@ -351,22 +352,17 @@ while evtnum < evtmax:
                     ntuple.fillMcp(mcp)
                     fill = True
 
-    # Get MC data
-    # You could use the RootInTES path for MC as well (since default is ''), but
-    # this is more explicit.
+    # Get particles and primary vertices
+    # For MC, the RootInTES location is ''
     # 20260407: removed trks
-    if IS_MC:
-        prts = tes[seq.outputLocation()]
-        pvrs = tes['Rec/Vertex/Primary']
-    # Get Turbo data
-    else:
-        prts = tes[os.path.join(DaVinci().RootInTES, seq.outputLocation())]
-        pvrs = tes[os.path.join(DaVinci().RootInTES, 'Rec/Vertex/Primary')]
+    prts = tes[os.path.join(DaVinci().RootInTES, seq.outputLocation())]
+    pvrs = tes[os.path.join(DaVinci().RootInTES, 'Rec/Vertex/Primary')]
 
     # Fill tag and prt info.
     sigs = []
     try: len(prts); run = True
     except: run = False
+
     if run:
         for prt in prts:
             sigs += [prt]
