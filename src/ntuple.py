@@ -5,8 +5,11 @@
 
 import ROOT
 import array
+import os
 import GaudiPython
 from GaudiPython.Bindings import gbl
+from collections import OrderedDict
+import array
 
 STD = gbl.std
 LHCB = gbl.LHCb
@@ -14,10 +17,13 @@ LHCB = gbl.LHCb
 # Tag configuration.
 TrkCats = [('ve', 1), ('tt', 2), ('it', 3), ('ot', 4), ('mu', 7)]
 # Sprucing lines for Run 2.
-TrgLocs = ['Hlt2ExoticaPrmptDiMuonSSTurbo', 
-           'Hlt2ExoticaPrmptDiMuonTurbo',
-           'Hlt2ExoticaDiMuonNoIPTurbo',
-           'Hlt2ExoticaDisplDiMuon']
+# TODO: check sprucing lines
+TrgLocs = [
+    # 'Hlt2ExoticaPrmptDiMuonSSTurbo', 
+    'Hlt2ExoticaPrmptDiMuonTurbo',
+    'Hlt2ExoticaDisplDiMuon',
+    'Hlt2ExoticaDiMuonNoIPTurbo',
+    ]
 
 # =============================================================================
 
@@ -29,9 +35,7 @@ class Ntuple:
 
     def __init__(self, name, IS_MC, DECAY, tes, genTool, rftTool, pvrTool, velTool,
                  dstTool, detTool, trkTool, l0Tool, hlt1Tool, hlt2Tool):
-        from collections import OrderedDict
-        import ROOT
-        import array
+        self.IS_MC = IS_MC
         self.decay = DECAY
         self.tes = tes
         self.genTool = genTool
@@ -66,10 +70,14 @@ class Ntuple:
         self.vrsInit('pvr', vrsVrt)
         self.vrsInit('tag', ['idx_pvr'] + vrsMom + vrsVrt + vrsTag + vrsTrg)
         self.vrsInit('tag', ['ve_iso0', 've_iso1', 'ln_iso0', 'ln_iso1'])
-        self.vrsInit('prt', ['idx_pvr', 'idx_gen', 'deltar', 'idx_mom'] + vrsMom + vrsPrt)
+        self.vrsInit('prt', ['idx_pvr', 'deltar', 'idx_mom'] + vrsMom + vrsPrt)
 
         # MC data.
-        if IS_MC:
+        if self.IS_MC:
+            # Reco to gen-level mapping
+            self.vrsInit('prt', ['idx_gen'] + vrsMom + vrsPrt)
+            
+            # Gen-level info
             vrsMcp = ['pid', 'q', 'px', 'py', 'pz', 'e', 'x', 'y', 'z']
             self.vrsInit('mcpvr', ['x', 'y', 'z'])
             self.vrsInit('mc', ['idx_pvr', 'idx_mom'] + vrsMcp)
@@ -88,7 +96,6 @@ class Ntuple:
     # ---------------------------------------------------------------------------
 
     def vrsInit(self, pre, vrs):
-        import ROOT
         for v in vrs: self.ntuple['%s_%s' % (pre, v)] = ROOT.vector('double')()
 
     # ---------------------------------------------------------------------------
@@ -216,7 +223,7 @@ class Ntuple:
 
     # ---------------------------------------------------------------------------
 
-    def fillPrt(self, prt, pvrs=None, prts=None):
+    def fillPrt(self, prt, pvrs=None):
         """
         Fill all available particle (prt) information into ntuple, including
         its primary vertex information (pvrs).
@@ -228,7 +235,9 @@ class Ntuple:
         try: prt = prt.data()
         except: pass
         # Try to get primary vertex associated with particle
-        try: pvr = self.pvrTool.relatedPV(prt, 'Rec/Vertex/Primary')
+        from Configurables import DaVinci
+        pvr_loc = os.path.join(DaVinci().RootInTES, 'Rec/Vertex/Primary') if not self.IS_MC else 'Rec/Vertex/Primary'
+        try: pvr = self.pvrTool.relatedPV(prt, pvr_loc)
         except: pvr = None
         # Recursive base case; check if a composite particle that decays.
         vrt = prt.endVertex()
@@ -290,7 +299,8 @@ class Ntuple:
         self.fillMom(pre, mom)
 
         # Trigger.
-        # TOS == Trigger On Signal, TIS == Trigger Independent of Signal,
+        # TOS == Trigger On Signal, 
+        # TIS == Trigger Independent of Signal,
         # TOB == Trigger On Both.
         # setOfflineInput(prt) sets candidate to analyze for the trigger tool.
         self.l0Tool.setOfflineInput(prt)
@@ -305,33 +315,26 @@ class Ntuple:
         self.l0Tool.setTriggerInput('L0MuonDecision')
         trg = self.l0Tool.tisTosTobTrigger()
         self.fill('%s_l0_tos1' % pre, trg.tos())
-        self.l0Tool.setTriggerInput('L0HadronDecision')
-        trg = self.l0Tool.tisTosTobTrigger()
-        self.fill('%s_l0_tis' % pre, trg.tis())
         # HLT1 software trigger
         self.hlt1Tool.setTriggerInput('Hlt1DiMuonNoIPDecision')
         trg = self.hlt1Tool.tisTosTobTrigger()
         self.fill('%s_hlt1_tos0' % pre, trg.tos())
-        self.hlt1Tool.setTriggerInput('Hlt1MultiDiMuonNoIPDecision')
-        trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tos1' % pre, trg.tos())
         self.hlt1Tool.setTriggerInput('Hlt1DiMuonLowMassDecision')
         trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tos2' % pre, trg.tos())
-        self.hlt1Tool.setTriggerInput('Hlt1DiMuonHighMassDecision')
-        trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tos3' % pre, trg.tos())
-        self.hlt1Tool.setTriggerInput('Hlt1.*TrackMVA.*')
-        trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tis' % pre, trg.tis())
+        self.fill('%s_hlt1_tos1' % pre, trg.tos())
         # HLT2 software trigger
         self.hlt2Tool.setTriggerInput('Hlt2Topo.*')
         trg = self.hlt2Tool.tisTosTobTrigger()
         self.fill('%s_hlt2_tis' % pre, trg.tis())
-        for locIdx, loc in enumerate(TrgLocs):
-            self.hlt2Tool.setTriggerInput(loc + 'Decision')
-            trg = self.hlt2Tool.tisTosTobTrigger()
-            self.fill('%s_hlt2_tos%i' % (pre, locIdx), trg.tos())
+        self.hlt2Tool.setTriggerInput('Hlt2ExoticaPrmptDiMuonTurboDecision')
+        trg = self.hlt2Tool.tisTosTobTrigger()
+        self.fill('%s_hlt2_tos0' % pre, trg.tos())
+        self.hlt2Tool.setTriggerInput('Hlt2ExoticaDisplDiMuonDecision')
+        trg = self.hlt2Tool.tisTosTobTrigger()
+        self.fill('%s_hlt2_tos1' % pre, trg.tos())
+        self.hlt2Tool.setTriggerInput('Hlt2ExoticaDiMuonNoIPTurboDecision')
+        trg = self.hlt2Tool.tisTosTobTrigger()
+        self.fill('%s_hlt2_tos2' % pre, trg.tos())
 
         # Particle ID.
         self.fill('%s_pid' % pre, pid)
@@ -408,26 +411,19 @@ class Ntuple:
                 self.fill('%s_ym2' % pre, v.y())
                 self.fill('%s_zm2' % pre, v.z())
 
-        # # Find linked MC particle matches only for daughters
-        # if pre == 'prt':
-        #     try:
-        #         # Relate reconstructed particle to generator-level particle.
-        #         gen = None; wgt = 0; rels = self.genTool.relatedMCPs(prt)
-        #         # Select match with heighest weight
-        #         for rel in rels: gen = rel.to() if rel.weight() > wgt else gen
-        #         if gen: (genPre, genIdx) = self.fillMcp(gen)
-        #         else: genIdx = -1
-        #         self.fill('%s_idx_gen' % pre, genIdx)
-        #     except: pass
-
         # Find linked MC particle matches only for daughters using 
         # DaVinciSmartAssociator
-        if pre == 'prt':
+        if pre == 'prt' and self.IS_MC:
             try:
+                # Initial dr value.
+                deltar = -1.0
                 # Relate reconstructed particle to generator-level particle.
                 gen = None; wgt = 0; rels = self.genTool.relatedMCPs(prt)
                 # Select match with heighest weight
-                for rel in rels: gen = rel.to() if rel.weight() > wgt else gen
+                for rel in rels:
+                    if rel.weight() > wgt:
+                        gen = rel.to()
+                        wgt = rel.weight()
                 if gen: (genPre, genIdx) = self.fillMcp(gen)
                 # If DaVinciSmartAssociator fails (no match), use delta r
                 # matching
@@ -440,31 +436,27 @@ class Ntuple:
                         dphi = mcp.momentum().phi() - prt.momentum().phi()
                         deta = mcp.momentum().eta() - prt.momentum().eta()
                         # Calculate delta r
-                        deltar = sqrt(dphi**2 + deta**2)  
+                        dr = sqrt(dphi**2 + deta**2)
                         # Check if this is smaller than the current 
                         # minimum delta r. If so, update mindr and 
                         # relp. Add info to ntuple for this daughter's
                         # linked MCParticle
-                        if deltar < mindr: mindr = deltar; relp = mcp
+                        if dr < mindr: mindr = dr; relp = mcp
                     if relp: 
                         (genPre, genIdx) = self.fillMcp(relp)
-                        self.fill('%s_deltar' % pre, mindr)
-                    else: 
-                        genIdx = -1
-                        self.fill('%s_deltar' % pre, -1)
+                        deltar = mindr
+                    else: genIdx = -1
+                self.fill('%s_deltar' % pre, deltar)
                 self.fill('%s_idx_gen' % pre, genIdx)
-            except: pass
-            # TODO: save value of deltaR to ntuple so we can make offline cuts 
-            # on it later
+            except: pass  # Could fill deltar and idx_gen with -1, won't for now
 
         # IP.
         from ctypes import c_double
         ip, ipChi2 = c_double(-1.0), c_double(-1.0)
-        self.dstTool.distance(prt, pvr, ip, ipChi2)
-        # Compute Impact Paramter (IP)
+        # Compute Impact Parameter (IP)
         # Measures shortest distance from particle to PV. High IP means
         # particle likely isn't prompt (PV) eta and instead displaced (SV)
-        # other particle(e.g. B or D meson) producing decay that fakes an eta.
+        # other particle (e.g. B or D meson) producing decay that fakes an eta.
         if pvr: self.dstTool.distance(prt, pvr, ip, ipChi2)
         self.fill('%s_ip' % pre, ip.value)  # need to convert c_double to py
         self.fill('%s_ip_chi2' % pre, ipChi2.value)  # same here
@@ -659,136 +651,4 @@ class Ntuple:
         # Mother.
         self.fill('%s_idx_mom' % pre, -1)
 
-        return (pre, idx)
-
-    # ---------------------------------------------------------------------------
-
-    def fillGen(self, prt):
-        """
-        Save particle (prt) which is part of a gen-level occurrence of
-        eta -> mu+ mu- gamma.
-        """
-
-        pid = prt.particleID().pid()
-        mom = prt.momentum()
-        pos = None
-        key = self.key(prt)
-        idx = -1
-
-        # Only particles with pid 221 getting initially passed in, so this
-        # is a sufficient check.
-        pre = 'gentag' if pid in [221] else 'genprt'
-        # Prevent filling same particle more than once.
-        if key in self.saved: return (pre, self.saved[key])
-
-
-        # Daughters.
-        if pre == 'gentag':
-            dtrs = []
-            accept = True
-
-            # Loop over decay vertices and collect all daughters.
-            for vrt in prt.endVertices():
-                for dtr in vrt.products():
-                    # Add only daughter particles in target decay
-                    # eta -> mu+ mu- gamma
-                    if self.decay == 'eta2mumugamma' and dtr.particleID().pid() in [-13, 13, 22]:
-                        dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
-                    # eta -> mu+ mu-
-                    elif self.decay == 'eta2mumu' and dtr.particleID().pid() in [-13, 13]:
-                        dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
-                    # eta -> mu+ mu- mu+ mu-
-                    elif self.decay == 'eta2mumumumu' and dtr.particleID().pid() in [-13, 13]:
-                        dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
-                    # eta -> mu+ mu- e+ e-
-                    elif self.decay == 'eta2mumuee' and dtr.particleID().pid() in [-13, -11, 11, 13]:
-                        dtrs.append({'pid': dtr.particleID().pid(), 'dtr': dtr})
- 
-            # Sort daughters by PID, i.e. always in {-13, 13(, 22)} order.
-            dtrs = sorted(dtrs, key=lambda d: d['pid'])
-
-            # Skip all etas which do not decay exactly to mu+ mu- (gamma)
-            pids = [d['pid'] for d in dtrs]
-            if self.decay == 'eta2mumugamma': accept = accept and pids == [-13, 13, 22]
-            elif self.decay == 'eta2mumu': accept = accept and pids == [-13, 13]
-            elif self.decay == 'eta2mumumumu': accept = accept and pids == [-13, -13, 13, 13]
-            elif self.decay == 'eta2mumuee': accept = accept and pids == [-13, -11, 11, 13]
-
-            # Kinematics checks.
-            for dtr in dtrs:
-                # Check for LHCb acceptance range
-                accept = accept and (2.0 < dtr['dtr'].pseudoRapidity() < 4.5)
-                # Skip all etas which do not have muons with p >= 3 GeV
-                if dtr['pid'] in [-13, 13]:
-                    accept = accept and dtr['dtr'].p() > 3000
-                # Skip all eta which do not have daughters with pT >= 500 MeV
-                accept = accept and dtr['dtr'].pt() > 500
-
-            # Acceptance checks.
-            if not accept: return (None, None)
-
-            # Save particle index (of gentag).
-            idx = self.ntuple['%s_px' % pre].size()
-            self.saved[key] = idx
-
-            # Now fill daughters only if the whole decay is accepted
-            for dtr in dtrs:
-                if not accept: print("ERROR: Should not reach here!")
-                dtr_prt = dtr['dtr']
-                dtr_pid = dtr['pid']
-                dtr_key = self.key(dtr_prt)
-                dtr_pre = 'genprt'
-                # Always fill all three daughters for each accepted eta decay
-                # Save daughter particle index
-                # # Prevent filling same daughter more than once
-                # if dtr_key in self.saved: continue
-                # Save daughter particle index
-                dtr_idx = self.ntuple['%s_px' % dtr_pre].size()
-                self.saved[dtr_key] = dtr_idx
-                # Momentum
-                self.fillMom(dtr_pre, dtr_prt.momentum())
-                # PID
-                self.fill('%s_q' % dtr_pre, float(dtr_prt.particleID().threeCharge()) / 3.0)
-                self.fill('%s_pid' % dtr_pre, dtr_pid)
-                # Vertex
-                self.fillVrt(dtr_pre, dtr_prt.originVertex())
-                # Primary vertex
-                pvr = dtr_prt.primaryVertex()
-                if pvr:
-                    pvr_key = self.key(pvr)
-                    if pvr_key not in self.saved:
-                        self.saved[pvr_key] = self.ntuple['mcpvr_x'].size()
-                        self.fill('mcpvr_x', pvr.position().X())
-                        self.fill('mcpvr_y', pvr.position().Y())
-                        self.fill('mcpvr_z', pvr.position().Z())
-                    self.fill('%s_idx_pvr' % dtr_pre, self.saved[pvr_key])
-                else:
-                    self.fill('%s_idx_pvr' % dtr_pre, -1)
-                # Fill index for mother particle
-                try:
-                    self.fill('%s_idx_mom' % dtr_pre, idx)
-                except:
-                    self.fill('%s_idx_mom' % dtr_pre, -1)
-                # Sanity check (should always be 221)
-                self.fill('%s_pid_mom' % dtr_pre, prt.particleID().pid())
-
-        # Save particle index and fill info for gentag
-        idx = self.ntuple['%s_px' % pre].size()
-        self.saved[key] = idx
-        self.fillMom(pre, mom)
-        # self.fill('%s_eta' % pre, prt.pseudoRapidity())
-        self.fill('%s_q' % pre, float(prt.particleID().threeCharge()) / 3.0)
-        self.fill('%s_pid' % pre, pid)
-        self.fillVrt(pre, prt.originVertex())
-        pvr = prt.primaryVertex()
-        if pvr:
-            pvr_key = self.key(pvr)
-            if pvr_key not in self.saved:
-                self.saved[pvr_key] = self.ntuple['mcpvr_x'].size()
-                self.fill('mcpvr_x', pvr.position().X())
-                self.fill('mcpvr_y', pvr.position().Y())
-                self.fill('mcpvr_z', pvr.position().Z())
-            self.fill('%s_idx_pvr' % pre, self.saved[pvr_key])
-        else:
-            self.fill('%s_idx_pvr' % pre, -1)
         return (pre, idx)

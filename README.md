@@ -6,6 +6,19 @@ A `.root` file will be generated in the `ntuples/` directory, which is broken in
 
 `plots/` contains scripts to plot values int the ntuple, e.g. `mc_pid`. These plots should be stored in `figs/`.
 
-`src/` contains the scripts used to perform this analysis (fill the ntuple and other accessory operations).
+`scripts/` contains the scripts used to perform this analysis (fill the ntuple and other accessory operations).
 
-`data/` contains the dec files used to request new MC samples. This is not strictly necessary to run this code and exists as reference material in the event one's decay of interest is not available on DIRAC.
+## Usage
+
+In `ana.py` you will see near the top the following flags:
+
+- `IS_MC`: True = MC, False = Run 2 data
+- `IS_SIGNAL`: True = signal, False = minbias
+- `IS_SAMPLE`: True = local sample (for testing), False = analysis production
+- `DECAY`: string of decay type. Current options:
+    - `'eta2mumu'`
+    - `'eta2mumugamma'`
+    - `'eta2mumumumu'`
+    - `'eta2mumuee'`
+
+Change these flags as appropriate. While these could easily be made into command line arguments, I don't want to mess with the analysis production flags that get passed in through parseArgs() and figure out how to make it work. This system works fine.

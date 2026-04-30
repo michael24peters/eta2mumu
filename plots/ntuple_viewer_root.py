@@ -1,3 +1,8 @@
+################################################################################
+# Basic script for drawing ROOT histograms on a canvas and saving to file,     #
+# using the ROOT framework.                                                    #
+################################################################################
+
 import ROOT
 import argparse
 

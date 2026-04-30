@@ -1,3 +1,7 @@
+# NOTE: This code is deprecated for the current analysis, the leaves referenced
+# are no longer in the ntuples. This file is kept for reference for matplotlib
+# plotting of ROOT ntuple leaves.
+
 import uproot
 import matplotlib
 matplotlib.use("Agg")
