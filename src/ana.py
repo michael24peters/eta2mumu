@@ -1,7 +1,8 @@
 """
 GaudiPython script for eta -> mu mu (gamma) analysis
 Author: Michael Peters
-Usage: lb-run DaVinci/v45r8 ipython src/ana.py [--decay <decay-option>] [--is_mc] [--is_signal] [--is_sample]
+Usage: lb-run DaVinci/v45r8 ipython src/ana.py [--decay <decay-option>] 
+       [--is_mc] [--is_signal] [--is_sample]
 
 This analysis ntupling script is built for Run 2 MC and Turbo data, both for
 local samples and analysis production with LHCb. To be even more specific, the
@@ -210,6 +211,8 @@ elif DECAY == 'eta2mumumumu':
     combination_cuts += " & (ANUM((ABSID == 'mu-') & (PT > 500*MeV)) > 0)"
     decay_descriptor = "eta -> mu+ mu- mu+ mu-"
 elif DECAY == 'eta2mumuee':
+    # TODO: need to apply eta_4mu logic here as well
+    # TODO: need special trigger lines for electron
     # Half PT requirement for twice the number of final state particles
     daughter_cuts["mu+"] = "(PT > 250*MeV) & (P > 3*GeV)"
     daughter_cuts["mu-"] = "(PT > 250*MeV) & (P > 3*GeV)"
@@ -302,7 +305,6 @@ ntuple = Ntuple(outfile, IS_MC, DECAY, tes, genTool, rftTool, pvrTool,
                 None, dstTool, None, trkTool, l0Tool, hlt1Tool, hlt2Tool)
 
 # Run.
-# local sample
 try: evtmax = args.evtmax if args.evtmax > 0 else float("inf")
 # analysis production
 except: 
