@@ -10,20 +10,27 @@ import GaudiPython
 from GaudiPython.Bindings import gbl
 from collections import OrderedDict
 import array
+from LoKiArrayFunctors.decorators import AMAXDOCA  # For DOCA info
 
 STD = gbl.std
 LHCB = gbl.LHCb
 
 # Tag configuration.
 TrkCats = [('ve', 1), ('tt', 2), ('it', 3), ('ot', 4), ('mu', 7)]
-# Sprucing lines for Run 2.
-# TODO: check sprucing lines
-TrgLocs = [
-    # 'Hlt2ExoticaPrmptDiMuonSSTurbo', 
-    'Hlt2ExoticaPrmptDiMuonTurbo',
-    'Hlt2ExoticaDisplDiMuon',
-    'Hlt2ExoticaDiMuonNoIPTurbo',
-    ]
+# Trigger lines for Run 2.
+l0Trgs = [
+    'L0DiMuonDecision',
+    'L0MuonDecision',
+]
+hlt1Trgs = [
+    'Hlt1DiMuonNoIPDecision',
+    'Hlt1DiMuonLowMassDecision',
+]
+hlt2Trgs = [
+    'Hlt2ExoticaPrmptDiMuonTurboDecision',
+    'Hlt2ExoticaDisplDiMuonDecision',
+    'Hlt2ExoticaDiMuonNoIPTurboDecision',
+]
 
 # =============================================================================
 
@@ -58,18 +65,19 @@ class Ntuple:
                   'pnn_k', 'pnn_p', 'pnn_ghost', 'prb_ghost', 'ip', 'ip_chi2',
                   'x0', 'y0', 'z0', 't0', 'p0', 'id0', 'z1', 'id1', 'id2',
                   'id3', 'xm2', 'ym2', 'zm2']
-        # TODO not used: tag_doca, tag_chi2, tag_ve_iso0, tag_ve_iso1,
-        # tag_ln_iso0, tag_ln_iso1, prt_iso
+        # TODO not used: prt_iso, tag_ve_ns, tag_tt_ns, tag_it_ns, tag_ot_ns, tag_mu_ns
         vrsTag = ['m', 'dtf_m', 'dtf_dm', 'ip', 'ip_chi2', 'fd', 'fd_chi2',
-                  'doca', 'dtf_chi2', 'chi2', 've_ns', 'tt_ns', 'it_ns',
-                  'ot_ns', 'mu_ns']
-        vrsTrg = ['l0_tos0', 'l0_tos1', 'l0_tis', 'hlt1_tos0', 'hlt1_tos1',
-                  'hlt1_tos2', 'hlt1_tos3', 'hlt1_tis'] + [
-                      'hlt2_tos%i' % i for i in range(0, len(TrgLocs))] + [
-                          'hlt2_tis']
+                  'doca', 'dtf_chi2', 'chi2']
+        vrsTrg = (
+            ['l0_tos%i' % i for i in range(len(l0Trgs))] +
+            ['hlt1_tos%i' % i for i in range(len(hlt1Trgs))] +
+            ['hlt2_tos%i' % i for i in range(len(hlt2Trgs))] +
+            ['hlt2_tis']
+        )
         self.vrsInit('pvr', vrsVrt)
         self.vrsInit('tag', ['idx_pvr'] + vrsMom + vrsVrt + vrsTag + vrsTrg)
-        self.vrsInit('tag', ['ve_iso0', 've_iso1', 'ln_iso0', 'ln_iso1'])
+        # TODO not used: tag_ve_iso0, tag_ve_iso1, tag_ln_iso0, tag_ln_iso1,
+        # self.vrsInit('tag', ['ve_iso0', 've_iso1', 'ln_iso0', 'ln_iso1'])
         self.vrsInit('prt', ['idx_pvr', 'deltar', 'idx_mom'] + vrsMom + vrsPrt)
 
         # MC data.
@@ -293,6 +301,8 @@ class Ntuple:
             else:
                 self.fill('%s_dtf_chi2' % pre, -1)
                 self.fillVrt(pre, vrt)
+            self.fill('%s_chi2' % pre, vrt.chi2())
+            self.fill('%s_doca' % pre, AMAXDOCA('')(prt.daughters()))
 
         # Momentum and mass.
         self.fill('%s_m' % pre, prt.measuredMass())
@@ -306,35 +316,17 @@ class Ntuple:
         self.l0Tool.setOfflineInput(prt)
         self.hlt1Tool.setOfflineInput(prt)
         self.hlt2Tool.setOfflineInput(prt)
-        # setTriggerInput(trigger) sets which decision to evaluate.
-        # Check if candidate fired L0DiMuon trigger.
-        self.l0Tool.setTriggerInput('L0DiMuonDecision')
-        trg = self.l0Tool.tisTosTobTrigger()
-        self.fill('%s_l0_tos0' % pre, trg.tos())
-        # Repeat for single muon.
-        self.l0Tool.setTriggerInput('L0MuonDecision')
-        trg = self.l0Tool.tisTosTobTrigger()
-        self.fill('%s_l0_tos1' % pre, trg.tos())
-        # HLT1 software trigger
-        self.hlt1Tool.setTriggerInput('Hlt1DiMuonNoIPDecision')
-        trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tos0' % pre, trg.tos())
-        self.hlt1Tool.setTriggerInput('Hlt1DiMuonLowMassDecision')
-        trg = self.hlt1Tool.tisTosTobTrigger()
-        self.fill('%s_hlt1_tos1' % pre, trg.tos())
-        # HLT2 software trigger
+        for i, name in enumerate(l0Trgs):
+            self.l0Tool.setTriggerInput(name)
+            self.fill('%s_l0_tos%i' % (pre, i), self.l0Tool.tisTosTobTrigger().tos())
+        for i, name in enumerate(hlt1Trgs):
+            self.hlt1Tool.setTriggerInput(name)
+            self.fill('%s_hlt1_tos%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tos())
         self.hlt2Tool.setTriggerInput('Hlt2Topo.*')
-        trg = self.hlt2Tool.tisTosTobTrigger()
-        self.fill('%s_hlt2_tis' % pre, trg.tis())
-        self.hlt2Tool.setTriggerInput('Hlt2ExoticaPrmptDiMuonTurboDecision')
-        trg = self.hlt2Tool.tisTosTobTrigger()
-        self.fill('%s_hlt2_tos0' % pre, trg.tos())
-        self.hlt2Tool.setTriggerInput('Hlt2ExoticaDisplDiMuonDecision')
-        trg = self.hlt2Tool.tisTosTobTrigger()
-        self.fill('%s_hlt2_tos1' % pre, trg.tos())
-        self.hlt2Tool.setTriggerInput('Hlt2ExoticaDiMuonNoIPTurboDecision')
-        trg = self.hlt2Tool.tisTosTobTrigger()
-        self.fill('%s_hlt2_tos2' % pre, trg.tos())
+        self.fill('%s_hlt2_tis' % pre, self.hlt2Tool.tisTosTobTrigger().tis())
+        for i, name in enumerate(hlt2Trgs):
+            self.hlt2Tool.setTriggerInput(name)
+            self.fill('%s_hlt2_tos%i' % (pre, i), self.hlt2Tool.tisTosTobTrigger().tos())
 
         # Particle ID.
         self.fill('%s_pid' % pre, pid)

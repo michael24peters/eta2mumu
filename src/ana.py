@@ -85,11 +85,12 @@ DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 # True = MC | False = Turbo Run 2 data
 IS_MC = False
 # True = signal | False = minbias
+# Only relevant if IS_MC is True
 IS_SIGNAL = False
 # True = local sample | False = analysis production
-IS_SAMPLE = False
+IS_SAMPLE = True
 # Decay type
-DECAY = 'eta2mumugamma'
+DECAY = 'eta2mumu'
 if DECAY not in DECAYS: 
     raise ValueError(f"Invalid decay mode. Must be one of {DECAYS}.")
 
@@ -176,7 +177,7 @@ if not IS_MC:
 # --- Decay mode config --------------------------------------------------------
 # --- Combination cuts ---
 combination_cuts = (
-    "(ADAMASS('eta') < 150*MeV) & "  # change based on side bands
+    "(AM > 398*MeV) & (AM < 1108*MeV) & "  # 398 = eta - 150, 1108 = eta_prime + 150
     "(AMAXDOCA('') < 0.4*mm) & "  # doca between children
     # possibly change TRCHI2DOF to 2.5
     "(AMAXCHILD('mu-' == ABSID, TRCHI2DOF) < 3) & "  # track
@@ -255,8 +256,11 @@ for stage in ('Hlt1', 'Hlt2'):
         tool.HltDecReportsLocation = '/Event/' + stage + '/DecReports'
         tool.HltSelReportsLocation = '/Event/' + stage + '/SelReports'
     else:
-        tool.HltDecReportsLocation = DaVinci().RootInTES + stage + '/DecReports'
-        tool.HltSelReportsLocation = DaVinci().RootInTES + stage + '/SelReports'
+        # For Turbo data, SelReports only exist inside the RootInTES subtree.
+        # DecReports exist at both paths but are set consistently here.
+        root = DaVinci().RootInTES.rstrip('/')
+        tool.HltDecReportsLocation = root + '/' + stage + '/DecReports'
+        tool.HltSelReportsLocation = root + '/' + stage + '/SelReports'
 
 # GaudiPython configuration.
 import GaudiPython
