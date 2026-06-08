@@ -1,8 +1,7 @@
 """
 GaudiPython script for eta -> mu mu (gamma) analysis
 Author: Michael Peters
-Usage: lb-run DaVinci/v45r8 ipython src/ana.py [--decay <decay-option>] 
-       [--is_mc] [--is_signal] [--is_sample]
+Usage: lb-run DaVinci/v45r8 ipython src/ana.py
 
 This analysis ntupling script is built for Run 2 MC and Turbo data, both for
 local samples and analysis production with LHCb. To be even more specific, the
@@ -83,10 +82,10 @@ DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 
 # Set flags
 # True = MC | False = Turbo Run 2 data
-IS_MC = False
+IS_MC = True
 # True = signal | False = minbias
 # Only relevant if IS_MC is True
-IS_SIGNAL = False
+IS_SIGNAL = True
 # True = local sample | False = analysis production
 IS_SAMPLE = True
 # Decay type
@@ -359,10 +358,13 @@ while evtnum < evtmax:
                     fill = True
 
     # Get particles and primary vertices
-    # For MC, the RootInTES location is ''
     # 20260407: removed trks
-    prts = tes[os.path.join(DaVinci().RootInTES, seq.outputLocation())]
-    pvrs = tes[os.path.join(DaVinci().RootInTES, 'Rec/Vertex/Primary')]
+    if IS_MC:
+        prts = tes[seq.outputLocation()]
+        pvrs = tes['Rec/Vertex/Primary']
+    else:
+        prts = tes[os.path.join(DaVinci().RootInTES, seq.outputLocation())]
+        pvrs = tes[os.path.join(DaVinci().RootInTES, 'Rec/Vertex/Primary')]
 
     # Fill tag and prt info.
     sigs = []
