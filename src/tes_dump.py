@@ -34,7 +34,6 @@ TurboConf().RunPersistRecoUnpacking = True
 
 import GaudiPython
 gaudi = GaudiPython.AppMgr()
-tes = gaudi.evtsvc()
 
 gaudi.run(1)
 

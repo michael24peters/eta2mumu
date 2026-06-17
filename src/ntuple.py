@@ -17,14 +17,13 @@ LHCB = gbl.LHCb
 
 # Tag configuration.
 TrkCats = [('ve', 1), ('tt', 2), ('it', 3), ('ot', 4), ('mu', 7)]
-# Trigger lines for Run 2.
 l0Trgs = [
     'L0DiMuonDecision',
-    'L0MuonDecision',
+    'L0MuonDecision'
 ]
 hlt1Trgs = [
     'Hlt1DiMuonNoIPDecision',
-    'Hlt1DiMuonLowMassDecision',
+    'Hlt1DiMuonLowMassDecision'
 ]
 hlt2Trgs = [
     'Hlt2ExoticaPrmptDiMuonTurboDecision',
@@ -70,9 +69,16 @@ class Ntuple:
                   'doca', 'dtf_chi2', 'chi2']
         vrsTrg = (
             ['l0_tos%i' % i for i in range(len(l0Trgs))] +
+            ['l0_tis%i' % i for i in range(len(l0Trgs))] +
             ['hlt1_tos%i' % i for i in range(len(hlt1Trgs))] +
+            ['hlt1_tis%i' % i for i in range(len(hlt1Trgs))] +
             ['hlt2_tos%i' % i for i in range(len(hlt2Trgs))] +
-            ['hlt2_tis']
+            # Hlt2 turbo data does not have SelReports, so TIS/TOS info for
+            # turbo lines is not available from TriggerTisTos (SelReports).
+            # See comments below for how this is handled in fillPrt().
+            # ['hlt2_tis%i' % i for i in range(len(hlt2Trgs))] +
+            ['hlt2_tis'] + 
+            ['hlt2_tos_topo', 'hlt2_tis_topo']
         )
         self.vrsInit('pvr', vrsVrt)
         self.vrsInit('tag', ['idx_pvr'] + vrsMom + vrsVrt + vrsTag + vrsTrg)
@@ -313,20 +319,50 @@ class Ntuple:
         # TIS == Trigger Independent of Signal,
         # TOB == Trigger On Both.
         # setOfflineInput(prt) sets candidate to analyze for the trigger tool.
+        # First, clear the input for each line.
+        self.l0Tool.setOfflineInput()
+        self.hlt1Tool.setOfflineInput()
+        self.hlt2Tool.setOfflineInput()
+        # Now set trigger input for each line and fill TOS and TIS info for each line.
         self.l0Tool.setOfflineInput(prt)
         self.hlt1Tool.setOfflineInput(prt)
         self.hlt2Tool.setOfflineInput(prt)
+        # Fill L0 TIS and TOS info.
         for i, name in enumerate(l0Trgs):
             self.l0Tool.setTriggerInput(name)
             self.fill('%s_l0_tos%i' % (pre, i), self.l0Tool.tisTosTobTrigger().tos())
+            self.fill('%s_l0_tis%i' % (pre, i), self.l0Tool.tisTosTobTrigger().tis())
+        # Fill HLT1 TIS and TOS info.
         for i, name in enumerate(hlt1Trgs):
             self.hlt1Tool.setTriggerInput(name)
             self.fill('%s_hlt1_tos%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tos())
-        self.hlt2Tool.setTriggerInput('Hlt2Topo.*')
-        self.fill('%s_hlt2_tis' % pre, self.hlt2Tool.tisTosTobTrigger().tis())
+            self.fill('%s_hlt1_tis%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tis())
+        # Fill HLT2 TIS and TOS info.
+        # Turbo lines (ExoticaPrmptDiMuon, ExoticaDisplDiMuon, ExoticaDiMuonNoIP)
+        # do not write SelReports into the Turbo MDST raw bank — candidates are
+        # persisted directly instead. TriggerTisTos derives decision()/tos()/tis()
+        # purely from SelReports, so it returns 0 for all three when they are
+        # absent. Read the DecReports directly; in Turbo mode all persisted
+        # candidates are trigger objects, so the event-level decision is TOS.
+        # TIS for Turbo lines is not recoverable from this data format.
+        hlt2_dec_loc = ('Hlt2/DecReports' if self.IS_MC
+                        else DaVinci().RootInTES.rstrip('/') + '/Hlt2/DecReports')
+        hlt2_dec = self.tes[hlt2_dec_loc]
+        hlt2_fired = {}
+        self.hlt2Tool.setTriggerInput('Hlt2.*')
+        hlt2_tis = self.hlt2Tool.tisTosTobTrigger().tis()
+        if hlt2_dec:
+            try:
+                for n, rep in hlt2_dec.decReports().items():
+                    hlt2_fired[str(n)] = int(bool(rep.decision()))
+            except: pass
         for i, name in enumerate(hlt2Trgs):
-            self.hlt2Tool.setTriggerInput(name)
-            self.fill('%s_hlt2_tos%i' % (pre, i), self.hlt2Tool.tisTosTobTrigger().tos())
+            self.fill('%s_hlt2_tos%i' % (pre, i), hlt2_fired.get(name, -1))
+        self.fill('%s_hlt2_tis' % pre, hlt2_tis)
+        # Topo lines persist SelReports, so TriggerTisTos works normally here.
+        self.hlt2Tool.setTriggerInput('Hlt2Topo.*')
+        self.fill('%s_hlt2_tis_topo' % pre, self.hlt2Tool.tisTosTobTrigger().tis())
+        self.fill('%s_hlt2_tos_topo' % pre, self.hlt2Tool.tisTosTobTrigger().tos())
 
         # Particle ID.
         self.fill('%s_pid' % pre, pid)

@@ -82,7 +82,7 @@ DECAYS = ['eta2mumu', 'eta2mumugamma', 'eta2mumumumu', 'eta2mumuee']
 
 # Set flags
 # True = MC | False = Turbo Run 2 data
-IS_MC = True
+IS_MC = False
 # True = signal | False = minbias
 # Only relevant if IS_MC is True
 IS_SIGNAL = True
@@ -162,9 +162,9 @@ if not IS_MC:
     DaVinci().DDDBtag = 'dddb-20171030-3'
     DaVinci().CondDBtag = 'cond-20180202'
     hlt = LoKi_Filters(HLT2_Code =
-        "HLT_PASS('Hlt2ExoticaPrmptDiMuonTurboDecision') | "
-        "HLT_PASS('Hlt2ExoticaDisplDiMuonDecision') | "
-        "HLT_PASS('Hlt2ExoticaDiMuonNoIPTurboDecision')")
+        "HLT_PASS_RE('Hlt2ExoticaPrmptDiMuonTurboDecision') | "
+        "HLT_PASS_RE('Hlt2ExoticaDisplDiMuonDecision') | "
+        "HLT_PASS_RE('Hlt2ExoticaDiMuonNoIPTurboDecision')")
     DaVinci().EventPreFilters = hlt.filters('TriggerFilters')
     # For Turbo data, RebuildSelection is required so that standard particle
     # makers source their inputs from the Turbo persistent reco containers.
@@ -255,8 +255,6 @@ for stage in ('Hlt1', 'Hlt2'):
         tool.HltDecReportsLocation = '/Event/' + stage + '/DecReports'
         tool.HltSelReportsLocation = '/Event/' + stage + '/SelReports'
     else:
-        # For Turbo data, SelReports only exist inside the RootInTES subtree.
-        # DecReports exist at both paths but are set consistently here.
         root = DaVinci().RootInTES.rstrip('/')
         tool.HltDecReportsLocation = root + '/' + stage + '/DecReports'
         tool.HltSelReportsLocation = root + '/' + stage + '/SelReports'
