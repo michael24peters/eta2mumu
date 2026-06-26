@@ -11,6 +11,7 @@ from GaudiPython.Bindings import gbl
 from collections import OrderedDict
 import array
 from LoKiArrayFunctors.decorators import AMAXDOCA  # For DOCA info
+from Configurables import DaVinci  # For DaVinci().RootInTES
 
 STD = gbl.std
 LHCB = gbl.LHCb
@@ -235,6 +236,66 @@ class Ntuple:
             self.fill('%s_dtf_m' % pre, -1)
             self.fill('%s_dtf_dm' % pre, -1)
 
+# ---------------------------------------------------------------------------
+
+    def turboTOS(self, obj, line):
+        """ 
+        For determining TOS on turbo candidates, when  HLT2 selection reports are 
+        not available
+        """
+
+        if not obj: return False
+        try:
+            # Check if the HLT2 line fired
+            reports = self.tes[DaVinci().RootInTES + 'Hlt2/DecReports']
+            if not reports.decReport(line + 'Decision').decision(): return False
+            # Check the overlap of each track used to build the offline candidate
+            trackPassed = [False for i in range(len(obj.daughtersVector()))]
+            i = 0
+            for track in obj.daughtersVector():
+                offlineIDs = set(id.lhcbID() for id in track.proto().track().lhcbIDs())
+                # Match the HLT2 track to the offline track
+                for cand in self.tes[DaVinci().RootInTES + line + '/Particles']:
+                    if cand.particleID().pid() != track.particleID().pid(): continue
+                    onlineIDs = set(id.lhcbID() for id in 
+                        cand.proto().track().lhcbIDs())
+                    intersection = offlineIDs & onlineIDs
+                    if len(intersection) / len(offlineIDs) > 0.7: trackPassed[i] = True
+                i += 1
+            # Check if all tracks passed
+            return False if trackPassed.count(False) else True
+        except: pass
+
+# ---------------------------------------------------------------------------
+
+    def turboTIS(self, obj, line):
+        """ 
+        For determining TIS on turbo candidates, when  HLT2 selection reports are 
+        not available
+        """
+
+        if not obj: return False
+        try:
+            # Get the offline candidate LHCb IDs
+            offlineIDs = []
+            for dtr in obj.daughtersVector():
+                offlineIDs += [id.lhcbID() for id in dtr.proto().track().lhcbIDs()]
+            # Get the LHCb IDs of the HLT2 candidates
+            onlineIDs = []
+            for cand in self.tes[DaVinci().RootInTES + line + '/Particles']:
+                for dtr in cand.daughtersVector():
+                    onlineIDs += [id.lhcbID() for id in dtr.proto().track().lhcbIDs()]
+            # Compare the online LHCb IDs to the offline LHCb IDs
+            nMatch = 0
+            for id in offlineIDs:
+                if id in onlineIDs: nMatch += 1
+            frac = nMatch / len(offlineIDs)
+            # Check if the HLT2 line fired
+            reports = self.tes[DaVinci().RootInTES + 'Hlt2/DecReports']
+            decision = reports.decReport(line + 'Decision').decision()
+            return decision and frac < 0.01
+        except: return False
+
     # ---------------------------------------------------------------------------
 
     def fillPrt(self, prt, pvrs=None):
@@ -249,7 +310,6 @@ class Ntuple:
         try: prt = prt.data()
         except: pass
         # Try to get primary vertex associated with particle
-        from Configurables import DaVinci
         pvr_loc = os.path.join(DaVinci().RootInTES, 'Rec/Vertex/Primary') if not self.IS_MC else 'Rec/Vertex/Primary'
         try: pvr = self.pvrTool.relatedPV(prt, pvr_loc)
         except: pvr = None
@@ -337,14 +397,7 @@ class Ntuple:
             self.hlt1Tool.setTriggerInput(name)
             self.fill('%s_hlt1_tos%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tos())
             self.fill('%s_hlt1_tis%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tis())
-        # Fill HLT2 TIS and TOS info.
-        # Turbo lines (ExoticaPrmptDiMuon, ExoticaDisplDiMuon, ExoticaDiMuonNoIP)
-        # do not write SelReports into the Turbo MDST raw bank — candidates are
-        # persisted directly instead. TriggerTisTos derives decision()/tos()/tis()
-        # purely from SelReports, so it returns 0 for all three when they are
-        # absent. Read the DecReports directly; in Turbo mode all persisted
-        # candidates are trigger objects, so the event-level decision is TOS.
-        # TIS for Turbo lines is not recoverable from this data format.
+
         hlt2_dec_loc = ('Hlt2/DecReports' if self.IS_MC
                         else DaVinci().RootInTES.rstrip('/') + '/Hlt2/DecReports')
         hlt2_dec = self.tes[hlt2_dec_loc]
