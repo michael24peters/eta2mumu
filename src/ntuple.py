@@ -74,11 +74,7 @@ class Ntuple:
             ['hlt1_tos%i' % i for i in range(len(hlt1Trgs))] +
             ['hlt1_tis%i' % i for i in range(len(hlt1Trgs))] +
             ['hlt2_tos%i' % i for i in range(len(hlt2Trgs))] +
-            # Hlt2 turbo data does not have SelReports, so TIS/TOS info for
-            # turbo lines is not available from TriggerTisTos (SelReports).
-            # See comments below for how this is handled in fillPrt().
-            # ['hlt2_tis%i' % i for i in range(len(hlt2Trgs))] +
-            ['hlt2_tis'] + 
+            ['hlt2_tis%i' % i for i in range(len(hlt2Trgs))] +
             ['hlt2_tos_topo', 'hlt2_tis_topo']
         )
         self.vrsInit('pvr', vrsVrt)
@@ -236,15 +232,18 @@ class Ntuple:
             self.fill('%s_dtf_m' % pre, -1)
             self.fill('%s_dtf_dm' % pre, -1)
 
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
 
-    def turboTOS(self, obj, line):
+    def turboTISTOS(self, obj, line, mode = 'tos'):
         """ 
         For determining TOS on turbo candidates, when  HLT2 selection reports are 
         not available
         """
 
         if not obj: return False
+        if   mode == 'tos': threshold = 0.7;  flag = False
+        elif mode == 'tis': threshold = 0.01; flag = True
+        else: return False
         try:
             # Check if the HLT2 line fired
             reports = self.tes[DaVinci().RootInTES + 'Hlt2/DecReports']
@@ -257,44 +256,15 @@ class Ntuple:
                 # Match the HLT2 track to the offline track
                 for cand in self.tes[DaVinci().RootInTES + line + '/Particles']:
                     if cand.particleID().pid() != track.particleID().pid(): continue
-                    onlineIDs = set(id.lhcbID() for id in 
-                        cand.proto().track().lhcbIDs())
+                    onlineIDs = set(id.lhcbID() for id in cand.proto().track().lhcbIDs())
                     intersection = offlineIDs & onlineIDs
-                    if len(intersection) / len(offlineIDs) > 0.7: trackPassed[i] = True
+                    if len(intersection) / len(offlineIDs) > threshold: 
+                        trackPassed[i] = True
                 i += 1
-            # Check if all tracks passed
-            return False if trackPassed.count(False) else True
+            # If TOS, check that all tracks passed
+            # If TIS, check that no tracks passed
+            return False if trackPassed.count(flag) else True
         except: pass
-
-# ---------------------------------------------------------------------------
-
-    def turboTIS(self, obj, line):
-        """ 
-        For determining TIS on turbo candidates, when  HLT2 selection reports are 
-        not available
-        """
-
-        if not obj: return False
-        try:
-            # Get the offline candidate LHCb IDs
-            offlineIDs = []
-            for dtr in obj.daughtersVector():
-                offlineIDs += [id.lhcbID() for id in dtr.proto().track().lhcbIDs()]
-            # Get the LHCb IDs of the HLT2 candidates
-            onlineIDs = []
-            for cand in self.tes[DaVinci().RootInTES + line + '/Particles']:
-                for dtr in cand.daughtersVector():
-                    onlineIDs += [id.lhcbID() for id in dtr.proto().track().lhcbIDs()]
-            # Compare the online LHCb IDs to the offline LHCb IDs
-            nMatch = 0
-            for id in offlineIDs:
-                if id in onlineIDs: nMatch += 1
-            frac = nMatch / len(offlineIDs)
-            # Check if the HLT2 line fired
-            reports = self.tes[DaVinci().RootInTES + 'Hlt2/DecReports']
-            decision = reports.decReport(line + 'Decision').decision()
-            return decision and frac < 0.01
-        except: return False
 
     # ---------------------------------------------------------------------------
 
@@ -375,47 +345,54 @@ class Ntuple:
         self.fillMom(pre, mom)
 
         # Trigger.
-        # TOS == Trigger On Signal, 
-        # TIS == Trigger Independent of Signal,
-        # TOB == Trigger On Both.
-        # setOfflineInput(prt) sets candidate to analyze for the trigger tool.
-        # First, clear the input for each line.
-        self.l0Tool.setOfflineInput()
-        self.hlt1Tool.setOfflineInput()
-        self.hlt2Tool.setOfflineInput()
-        # Now set trigger input for each line and fill TOS and TIS info for each line.
-        self.l0Tool.setOfflineInput(prt)
-        self.hlt1Tool.setOfflineInput(prt)
-        self.hlt2Tool.setOfflineInput(prt)
-        # Fill L0 TIS and TOS info.
-        for i, name in enumerate(l0Trgs):
-            self.l0Tool.setTriggerInput(name)
-            self.fill('%s_l0_tos%i' % (pre, i), self.l0Tool.tisTosTobTrigger().tos())
-            self.fill('%s_l0_tis%i' % (pre, i), self.l0Tool.tisTosTobTrigger().tis())
-        # Fill HLT1 TIS and TOS info.
-        for i, name in enumerate(hlt1Trgs):
-            self.hlt1Tool.setTriggerInput(name)
-            self.fill('%s_hlt1_tos%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tos())
-            self.fill('%s_hlt1_tis%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tis())
-
-        hlt2_dec_loc = ('Hlt2/DecReports' if self.IS_MC
-                        else DaVinci().RootInTES.rstrip('/') + '/Hlt2/DecReports')
-        hlt2_dec = self.tes[hlt2_dec_loc]
-        hlt2_fired = {}
-        self.hlt2Tool.setTriggerInput('Hlt2.*')
-        hlt2_tis = self.hlt2Tool.tisTosTobTrigger().tis()
-        if hlt2_dec:
-            try:
-                for n, rep in hlt2_dec.decReports().items():
-                    hlt2_fired[str(n)] = int(bool(rep.decision()))
-            except: pass
-        for i, name in enumerate(hlt2Trgs):
-            self.fill('%s_hlt2_tos%i' % (pre, i), hlt2_fired.get(name, -1))
-        self.fill('%s_hlt2_tis' % pre, hlt2_tis)
-        # Topo lines persist SelReports, so TriggerTisTos works normally here.
-        self.hlt2Tool.setTriggerInput('Hlt2Topo.*')
-        self.fill('%s_hlt2_tis_topo' % pre, self.hlt2Tool.tisTosTobTrigger().tis())
-        self.fill('%s_hlt2_tos_topo' % pre, self.hlt2Tool.tisTosTobTrigger().tos())
+        if pre == 'tag':
+            # TOS == Trigger On Signal, 
+            # TIS == Trigger Independent of Signal,
+            # TOB == Trigger On Both.
+            # setOfflineInput(prt) sets candidate to analyze for the trigger tool.
+            # First, clear the input for each line.
+            self.l0Tool.setOfflineInput()
+            self.hlt1Tool.setOfflineInput()
+            self.hlt2Tool.setOfflineInput()
+            # Now set trigger input for each line and fill TOS and TIS info for each line.
+            self.l0Tool.setOfflineInput(prt)
+            self.hlt1Tool.setOfflineInput(prt)
+            self.hlt2Tool.setOfflineInput(prt)
+            # Fill L0 TIS and TOS info.
+            for i, name in enumerate(l0Trgs):
+                self.l0Tool.setTriggerInput(name)
+                self.fill('%s_l0_tos%i' % (pre, i), self.l0Tool.tisTosTobTrigger().tos())
+                self.fill('%s_l0_tis%i' % (pre, i), self.l0Tool.tisTosTobTrigger().tis())
+            # Fill HLT1 TIS and TOS info.
+            # if pre == 'tag':
+            for i, name in enumerate(hlt1Trgs):
+                self.hlt1Tool.setTriggerInput(name)
+                self.fill('%s_hlt1_tos%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tos())
+                self.fill('%s_hlt1_tis%i' % (pre, i), self.hlt1Tool.tisTosTobTrigger().tis())
+            # Fill HLT2 TIS and TOS info.
+            for i, name in enumerate(hlt2Trgs):
+                self.fill('%s_hlt2_tos%i' % (pre, i), self.turboTISTOS(prt, name))
+                self.fill('%s_hlt2_tis%i' % (pre, i), self.turboTISTOS(prt, name, mode='tis'))
+            
+            # hlt2_dec_loc = ('Hlt2/DecReports' if self.IS_MC
+            #                 else DaVinci().RootInTES.rstrip('/') + '/Hlt2/DecReports')
+            # hlt2_dec = self.tes[hlt2_dec_loc]
+            # hlt2_fired = {}
+            # self.hlt2Tool.setTriggerInput('Hlt2.*')
+            # hlt2_tis = self.hlt2Tool.tisTosTobTrigger().tis()
+            # if hlt2_dec:
+            #     try:
+            #         for n, rep in hlt2_dec.decReports().items():
+            #             hlt2_fired[str(n)] = int(bool(rep.decision()))
+            #     except: pass
+            # for i, name in enumerate(hlt2Trgs):
+            #     self.fill('%s_hlt2_tos%i' % (pre, i), hlt2_fired.get(name, -1))
+            # self.fill('%s_hlt2_tis' % pre, hlt2_tis)
+            
+            # Topo lines persist SelReports, so TriggerTisTos works normally here.
+            self.hlt2Tool.setTriggerInput('Hlt2Topo.*')
+            self.fill('%s_hlt2_tis_topo' % pre, self.hlt2Tool.tisTosTobTrigger().tis())
+            self.fill('%s_hlt2_tos_topo' % pre, self.hlt2Tool.tisTosTobTrigger().tos())
 
         # Particle ID.
         self.fill('%s_pid' % pre, pid)
